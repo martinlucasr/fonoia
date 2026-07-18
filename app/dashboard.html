@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Mis pacientes — FonoIA</title>
+<link rel="stylesheet" href="../assets/app.css" />
+</head>
+<body>
+
+<header class="app-header">
+  <div class="app-header-inner">
+    <div class="app-logo">
+      <span class="mark">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+      </span>
+      FonoIA
+    </div>
+    <div class="app-user">
+      <span id="user-email"></span>
+      <button class="btn btn-secondary" id="btn-logout">Cerrar sesión</button>
+    </div>
+  </div>
+</header>
+
+<main class="app-main">
+  <div class="app-main-header">
+    <h1>Mis pacientes</h1>
+    <button class="btn btn-primary" id="btn-open-modal">+ Agregar paciente</button>
+  </div>
+
+  <div id="loading" class="loading-state">Cargando pacientes...</div>
+  <div id="empty" class="empty-state" style="display:none">
+    <p>Todavía no cargaste ningún paciente.</p>
+  </div>
+  <div id="patient-grid" class="patient-grid"></div>
+</main>
+
+<!-- MODAL: nuevo paciente -->
+<div class="modal-backdrop" id="modal-backdrop">
+  <div class="modal">
+    <h2>Nuevo paciente</h2>
+    <form id="form-new-patient">
+      <div class="field">
+        <label for="np-name">Nombre</label>
+        <input type="text" id="np-name" required />
+      </div>
+      <div class="field">
+        <label for="np-birthdate">Fecha de nacimiento</label>
+        <input type="date" id="np-birthdate" />
+      </div>
+      <div class="field">
+        <label for="np-diagnosis">Diagnóstico / motivo de consulta</label>
+        <input type="text" id="np-diagnosis" placeholder="Ej: Trastorno articulatorio /r/" />
+      </div>
+      <p class="form-message" id="np-message"></p>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-secondary" id="btn-close-modal">Cancelar</button>
+        <button type="submit" class="btn btn-primary">Guardar</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="../assets/supabase-config.js"></script>
+<script src="../assets/app-auth.js"></script>
+<script>
+  let currentUserId = null;
+
+  (async () => {
+    const session = await requireSession();
+    if (!session) return;
+    currentUserId = session.user.id;
+    document.getElementById("user-email").textContent = session.user.email;
+    loadPatients();
+  })();
+
+  document.getElementById("btn-logout").addEventListener("click", signOut);
+
+  async function loadPatients() {
+    const loading = document.getElementById("loading");
+    const empty = document.getElementById("empty");
+    const grid = document.getElementById("patient-grid");
+
+    const { data, error } = await sb
+      .from("patients")
+      .select("*")
+      .order("created_at", { ascending: false });
+
+    loading.style.display = "none";
+
+    if (error) {
+      grid.innerHTML = `<p class="form-message error">Error al cargar pacientes: ${error.message}</p>`;
+      return;
+    }
+
+    if (!data.length) {
+      empty.style.display = "block";
+      return;
+    }
+
+    grid.innerHTML = data.map((p) => `
+      <div class="patient-card">
+        <h3>${escapeHtml(p.name)}</h3>
+        <p>${escapeHtml(p.diagnosis || "Sin diagnóstico registrado")}</p>
+        <a href="patient.html?id=${p.id}">Ver historia clínica →</a>
+      </div>
+    `).join("");
+  }
+
+  function escapeHtml(str) {
+    const div = document.createElement("div");
+    div.textContent = str;
+    return div.innerHTML;
+  }
+
+  // Modal
+  const backdrop = document.getElementById("modal-backdrop");
+  document.getElementById("btn-open-modal").addEventListener("click", () => backdrop.classList.add("open"));
+  document.getElementById("btn-close-modal").addEventListener("click", () => backdrop.classList.remove("open"));
+
+  document.getElementById("form-new-patient").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const msg = document.getElementById("np-message");
+    msg.textContent = "Guardando...";
+    msg.className = "form-message";
+
+    const name = document.getElementById("np-name").value;
+    const birth_date = document.getElementById("np-birthdate").value || null;
+    const diagnosis = document.getElementById("np-diagnosis").value || null;
+
+    const { error } = await sb.from("patients").insert({
+      user_id: currentUserId,
+      name,
+      birth_date,
+      diagnosis,
+    });
+
+    if (error) {
+      msg.textContent = error.message;
+      msg.classList.add("error");
+      return;
+    }
+
+    e.target.reset();
+    msg.textContent = "";
+    backdrop.classList.remove("open");
+    document.getElementById("empty").style.display = "none";
+    loadPatients();
+  });
+</script>
+</body>
+</html>

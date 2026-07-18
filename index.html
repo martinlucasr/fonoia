@@ -1,0 +1,1282 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>FonoIA — Software de gestión clínica para Fonoaudiólogos con IA</title>
+<meta name="description" content="FonoIA es la plataforma pensada para fonoaudiólogos independientes: historias clínicas, notas por voz e informes de evolución generados con inteligencia artificial." />
+<style>
+/* ==========================================================================
+   FonoIA — Design tokens
+   ========================================================================== */
+:root {
+  --color-bg: #F7FAFA;
+  --color-surface: #FFFFFF;
+  --color-ink: #10221F;
+  --color-ink-soft: #4A5F5C;
+  --color-primary: #0F9E93;
+  --color-primary-dark: #0B7A71;
+  --color-primary-light: #E4F5F3;
+  --color-accent: #FF7A50;
+  --color-accent-dark: #E9612E;
+  --color-border: #E2ECEA;
+  --color-navy: #0B2B29;
+
+  --font-base: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+
+  --radius-sm: 10px;
+  --radius-md: 16px;
+  --radius-lg: 24px;
+
+  --shadow-sm: 0 2px 8px rgba(11, 43, 41, 0.06);
+  --shadow-md: 0 12px 32px rgba(11, 43, 41, 0.10);
+  --shadow-lg: 0 24px 60px rgba(11, 43, 41, 0.16);
+
+  --container: 1160px;
+}
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  margin: 0;
+  font-family: var(--font-base);
+  color: var(--color-ink);
+  background: var(--color-bg);
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+}
+img { max-width: 100%; display: block; }
+a { color: inherit; text-decoration: none; }
+ul { margin: 0; padding: 0; list-style: none; }
+h1, h2, h3, h4 { margin: 0; line-height: 1.15; letter-spacing: -0.02em; }
+p { margin: 0; }
+button { font-family: inherit; cursor: pointer; }
+
+.container {
+  width: 100%;
+  max-width: var(--container);
+  margin: 0 auto;
+  padding: 0 24px;
+}
+
+.eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-primary-dark);
+  background: var(--color-primary-light);
+  padding: 6px 14px;
+  border-radius: 999px;
+}
+
+.section-head {
+  max-width: 640px;
+  margin: 0 auto 56px;
+  text-align: center;
+}
+.section-head h2 {
+  font-size: clamp(28px, 3.4vw, 38px);
+  margin-top: 14px;
+}
+.section-head p {
+  margin-top: 14px;
+  color: var(--color-ink-soft);
+  font-size: 17px;
+}
+
+section { padding: 96px 0; }
+
+/* Buttons */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 14px 26px;
+  border-radius: var(--radius-sm);
+  font-weight: 600;
+  font-size: 15px;
+  border: 1px solid transparent;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease, color 0.15s ease;
+  white-space: nowrap;
+}
+.btn-primary {
+  background: var(--color-accent);
+  color: #fff;
+  box-shadow: var(--shadow-sm);
+}
+.btn-primary:hover { background: var(--color-accent-dark); transform: translateY(-1px); box-shadow: var(--shadow-md); }
+.btn-secondary {
+  background: transparent;
+  color: var(--color-ink);
+  border-color: var(--color-border);
+}
+.btn-secondary:hover { border-color: var(--color-primary); color: var(--color-primary-dark); }
+.btn-ghost-light {
+  background: rgba(255,255,255,0.12);
+  color: #fff;
+  border-color: rgba(255,255,255,0.35);
+}
+.btn-ghost-light:hover { background: rgba(255,255,255,0.2); }
+.btn-lg { padding: 16px 32px; font-size: 16px; }
+.btn-block { width: 100%; }
+
+/* ==========================================================================
+   Header
+   ========================================================================== */
+.header {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: rgba(247, 250, 250, 0.85);
+  backdrop-filter: saturate(180%) blur(12px);
+  border-bottom: 1px solid var(--color-border);
+}
+.header .container {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 76px;
+}
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 800;
+  font-size: 20px;
+  color: var(--color-navy);
+}
+.logo-mark {
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  background: linear-gradient(135deg, var(--color-primary), var(--color-primary-dark));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+}
+.logo-mark svg { width: 18px; height: 18px; }
+
+.nav-links {
+  display: flex;
+  align-items: center;
+  gap: 32px;
+}
+.nav-links a {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--color-ink-soft);
+  transition: color 0.15s ease;
+}
+.nav-links a:hover { color: var(--color-ink); }
+
+.header-cta { display: flex; align-items: center; gap: 14px; }
+.header-cta .link-signin { font-size: 15px; font-weight: 600; color: var(--color-ink-soft); }
+.header-cta .link-signin:hover { color: var(--color-ink); }
+
+.nav-toggle {
+  display: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  border: 1px solid var(--color-border);
+  background: #fff;
+  align-items: center;
+  justify-content: center;
+}
+.nav-toggle span, .nav-toggle span::before, .nav-toggle span::after {
+  content: "";
+  display: block;
+  width: 18px;
+  height: 2px;
+  background: var(--color-ink);
+  position: relative;
+  transition: all 0.2s ease;
+}
+.nav-toggle span::before { position: absolute; top: -6px; }
+.nav-toggle span::after { position: absolute; top: 6px; }
+
+/* ==========================================================================
+   Hero
+   ========================================================================== */
+.hero {
+  padding: 88px 0 60px;
+  overflow: hidden;
+  position: relative;
+}
+.hero .container {
+  display: grid;
+  grid-template-columns: 1.05fr 0.95fr;
+  gap: 56px;
+  align-items: center;
+}
+.hero-content h1 {
+  font-size: clamp(34px, 4.6vw, 54px);
+  margin-top: 18px;
+}
+.hero-content h1 em {
+  font-style: normal;
+  color: var(--color-primary);
+}
+.hero-content p.lead {
+  margin-top: 20px;
+  font-size: 18px;
+  color: var(--color-ink-soft);
+  max-width: 520px;
+}
+.hero-actions {
+  margin-top: 32px;
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+.hero-meta {
+  margin-top: 28px;
+  display: flex;
+  gap: 22px;
+  flex-wrap: wrap;
+  font-size: 14px;
+  color: var(--color-ink-soft);
+}
+.hero-meta span { display: flex; align-items: center; gap: 8px; }
+.hero-meta svg { width: 16px; height: 16px; color: var(--color-primary); flex-shrink: 0; }
+
+.hero-visual {
+  position: relative;
+}
+.hero-card {
+  background: var(--color-surface);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  border: 1px solid var(--color-border);
+  padding: 28px;
+  position: relative;
+  z-index: 2;
+}
+.hero-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20px;
+}
+.hero-card-top .tag {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--color-primary-dark);
+  background: var(--color-primary-light);
+  padding: 4px 10px;
+  border-radius: 999px;
+}
+.hero-card-top .rec {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--color-accent-dark);
+  font-weight: 600;
+}
+.rec-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--color-accent);
+  animation: pulse 1.6s infinite;
+}
+@keyframes pulse {
+  0% { box-shadow: 0 0 0 0 rgba(255,122,80,0.5); }
+  70% { box-shadow: 0 0 0 8px rgba(255,122,80,0); }
+  100% { box-shadow: 0 0 0 0 rgba(255,122,80,0); }
+}
+.transcript-lines { display: flex; flex-direction: column; gap: 10px; margin-bottom: 22px; }
+.transcript-line { height: 10px; border-radius: 6px; background: var(--color-border); }
+.transcript-line.short { width: 55%; }
+.transcript-line.med { width: 80%; }
+.transcript-line.full { width: 100%; }
+
+.hero-card-arrow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  color: var(--color-ink-soft);
+  font-size: 13px;
+  margin: 18px 0;
+}
+.hero-card-arrow svg { width: 16px; height: 16px; color: var(--color-primary); }
+
+.report-preview {
+  background: var(--color-primary-light);
+  border-radius: var(--radius-md);
+  padding: 18px;
+}
+.report-preview h4 {
+  font-size: 13px;
+  color: var(--color-primary-dark);
+  margin-bottom: 10px;
+}
+.report-line { height: 8px; border-radius: 6px; background: rgba(15,158,147,0.22); margin-bottom: 8px; }
+.report-line:last-child { margin-bottom: 0; width: 70%; }
+
+.hero-floating {
+  position: absolute;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  box-shadow: var(--shadow-md);
+  border-radius: var(--radius-sm);
+  padding: 12px 16px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  z-index: 3;
+}
+.hero-floating svg { width: 18px; height: 18px; color: var(--color-primary); }
+.hero-floating.f1 { top: -18px; right: 10%; }
+.hero-floating.f2 { bottom: -22px; left: -6%; }
+.hero-blob {
+  position: absolute;
+  width: 520px;
+  height: 520px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(15,158,147,0.16), transparent 65%);
+  top: -160px;
+  right: -160px;
+  z-index: 0;
+}
+
+/* ==========================================================================
+   Logos / trust strip
+   ========================================================================== */
+.trust-strip {
+  padding: 28px 0 8px;
+  text-align: center;
+}
+.trust-strip p {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-ink-soft);
+}
+.trust-tags {
+  margin-top: 18px;
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.trust-tags span {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-ink-soft);
+  border: 1px solid var(--color-border);
+  padding: 8px 16px;
+  border-radius: 999px;
+  background: var(--color-surface);
+}
+
+/* ==========================================================================
+   Pain / positioning
+   ========================================================================== */
+.positioning {
+  background: var(--color-navy);
+  color: #fff;
+}
+.positioning .container {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 60px;
+  align-items: center;
+}
+.positioning .eyebrow { background: rgba(255,255,255,0.1); color: #EAF7F5; }
+.positioning h2 {
+  font-size: clamp(26px, 3.2vw, 34px);
+  margin-top: 16px;
+}
+.positioning p.lead {
+  margin-top: 16px;
+  color: rgba(255,255,255,0.72);
+  font-size: 17px;
+}
+.compare-list { margin-top: 26px; display: flex; flex-direction: column; gap: 14px; }
+.compare-item {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 14px 16px;
+  border-radius: var(--radius-sm);
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.08);
+}
+.compare-item.no { opacity: 0.55; }
+.compare-item svg { width: 20px; height: 20px; flex-shrink: 0; margin-top: 2px; }
+.compare-item.yes svg { color: var(--color-primary); }
+.compare-item.no svg { color: #ff8a8a; }
+.compare-item strong { display: block; font-size: 15px; margin-bottom: 2px; }
+.compare-item span { font-size: 14px; color: rgba(255,255,255,0.65); }
+
+/* ==========================================================================
+   Features
+   ========================================================================== */
+.features { background: var(--color-bg); }
+.feature-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 24px;
+}
+.feature-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 30px 26px;
+  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+}
+.feature-card:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-md);
+  border-color: transparent;
+}
+.feature-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  background: var(--color-primary-light);
+  color: var(--color-primary-dark);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 18px;
+}
+.feature-icon svg { width: 24px; height: 24px; }
+.feature-card h3 { font-size: 18px; margin-bottom: 10px; }
+.feature-card p { color: var(--color-ink-soft); font-size: 15px; }
+.feature-card .soon {
+  display: inline-block;
+  margin-top: 12px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-accent-dark);
+  background: #FFF1EB;
+  padding: 3px 9px;
+  border-radius: 999px;
+}
+
+/* ==========================================================================
+   How it works
+   ========================================================================== */
+.steps { background: var(--color-surface); }
+.steps-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 28px;
+  counter-reset: step;
+}
+.step-card { position: relative; padding-top: 8px; }
+.step-num {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--color-primary);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  margin-bottom: 18px;
+}
+.step-card h3 { font-size: 17px; margin-bottom: 8px; }
+.step-card p { color: var(--color-ink-soft); font-size: 14.5px; }
+.step-connector {
+  display: none;
+}
+
+/* ==========================================================================
+   Testimonial / quote band
+   ========================================================================== */
+.quote-band {
+  background: var(--color-primary-light);
+}
+.quote-box {
+  max-width: 780px;
+  margin: 0 auto;
+  text-align: center;
+}
+.quote-box svg { width: 36px; height: 36px; color: var(--color-primary); margin: 0 auto 20px; }
+.quote-box p.quote-text {
+  font-size: clamp(20px, 2.4vw, 26px);
+  color: var(--color-navy);
+  font-weight: 600;
+  line-height: 1.4;
+}
+.quote-author {
+  margin-top: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+}
+.quote-avatar {
+  width: 44px; height: 44px; border-radius: 50%;
+  background: var(--color-primary);
+  color: #fff;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 700; font-size: 15px;
+}
+.quote-author-name { font-weight: 700; font-size: 14px; }
+.quote-author-role { font-size: 13px; color: var(--color-ink-soft); }
+
+/* ==========================================================================
+   Pricing
+   ========================================================================== */
+.pricing-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 24px;
+  align-items: stretch;
+}
+.pricing-grid-single {
+  grid-template-columns: minmax(0, 420px);
+  justify-content: center;
+}
+.price-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 34px 28px;
+  display: flex;
+  flex-direction: column;
+}
+.price-card.featured {
+  border: 2px solid var(--color-primary);
+  box-shadow: var(--shadow-md);
+  position: relative;
+}
+.price-badge {
+  position: absolute;
+  top: -14px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--color-primary);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 5px 14px;
+  border-radius: 999px;
+}
+.price-card h3 { font-size: 19px; }
+.price-card .price-sub { color: var(--color-ink-soft); font-size: 14px; margin-top: 6px; }
+.price-amount { margin-top: 22px; display: flex; align-items: baseline; gap: 6px; }
+.price-amount .num { font-size: 40px; font-weight: 800; }
+.price-amount .period { color: var(--color-ink-soft); font-size: 14px; }
+.price-features { margin: 26px 0 30px; display: flex; flex-direction: column; gap: 12px; flex-grow: 1; }
+.price-features li { display: flex; gap: 10px; font-size: 14.5px; color: var(--color-ink); align-items: flex-start; }
+.price-features svg { width: 18px; height: 18px; color: var(--color-primary); flex-shrink: 0; margin-top: 2px; }
+
+/* ==========================================================================
+   Contact form
+   ========================================================================== */
+.contact { background: var(--color-bg); }
+.contact-form {
+  max-width: 640px;
+  margin: 0 auto;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: 40px;
+  box-shadow: var(--shadow-sm);
+}
+.form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+.form-group { margin-bottom: 20px; }
+.form-group label {
+  display: block;
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 8px;
+  color: var(--color-ink);
+}
+.form-group input,
+.form-group textarea {
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  font-family: inherit;
+  font-size: 15px;
+  color: var(--color-ink);
+  background: var(--color-bg);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.form-group input:focus,
+.form-group textarea:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px var(--color-primary-light);
+}
+.form-group textarea { resize: vertical; min-height: 120px; }
+.hidden-field {
+  position: absolute;
+  width: 0; height: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+.form-status {
+  margin: 16px 0 0;
+  text-align: center;
+  font-size: 14px;
+  font-weight: 600;
+  min-height: 20px;
+}
+.form-status.success { color: var(--color-primary-dark); }
+.form-status.error { color: #C0392B; }
+.btn[disabled] { opacity: 0.65; cursor: not-allowed; }
+
+/* ==========================================================================
+   FAQ
+   ========================================================================== */
+.faq { background: var(--color-surface); }
+.faq-list { max-width: 800px; margin: 0 auto; display: flex; flex-direction: column; gap: 12px; }
+.faq-item {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg);
+  overflow: hidden;
+}
+.faq-question {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  width: 100%;
+  padding: 18px 22px;
+  background: none;
+  border: none;
+  text-align: left;
+  font-size: 15.5px;
+  font-weight: 600;
+  color: var(--color-ink);
+}
+.faq-question svg { width: 18px; height: 18px; color: var(--color-primary); flex-shrink: 0; transition: transform 0.2s ease; }
+.faq-item.open .faq-question svg { transform: rotate(45deg); }
+.faq-answer {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.25s ease;
+}
+.faq-answer-inner { padding: 0 22px 20px; color: var(--color-ink-soft); font-size: 14.5px; }
+.faq-item.open .faq-answer { max-height: 260px; }
+
+/* ==========================================================================
+   Final CTA
+   ========================================================================== */
+.final-cta {
+  background: linear-gradient(135deg, var(--color-primary-dark), var(--color-primary));
+  color: #fff;
+  text-align: center;
+  border-radius: var(--radius-lg);
+  margin: 0 24px;
+  padding: 72px 32px;
+}
+.final-cta-inner { max-width: 640px; margin: 0 auto; }
+.final-cta h2 { font-size: clamp(26px, 3.4vw, 36px); }
+.final-cta p { margin-top: 14px; color: rgba(255,255,255,0.85); font-size: 17px; }
+.final-cta .hero-actions { justify-content: center; margin-top: 30px; }
+.final-cta .btn-primary { background: #fff; color: var(--color-primary-dark); }
+.final-cta .btn-primary:hover { background: #F1FBFA; }
+
+/* ==========================================================================
+   Footer
+   ========================================================================== */
+.footer { background: var(--color-navy); color: rgba(255,255,255,0.7); padding: 64px 0 28px; margin-top: 96px; }
+.footer .container {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr 1fr 1fr;
+  gap: 40px;
+}
+.footer-brand .logo { color: #fff; }
+.footer-brand p { margin-top: 14px; font-size: 14px; max-width: 260px; color: rgba(255,255,255,0.55); }
+.footer h4 { color: #fff; font-size: 14px; margin-bottom: 16px; }
+.footer-links { display: flex; flex-direction: column; gap: 10px; }
+.footer-links a, .footer-links span { font-size: 14px; color: rgba(255,255,255,0.6); }
+.footer-links a:hover { color: #fff; }
+.footer-bottom {
+  margin-top: 48px;
+  padding-top: 24px;
+  border-top: 1px solid rgba(255,255,255,0.1);
+  text-align: center;
+  font-size: 13px;
+  color: rgba(255,255,255,0.45);
+}
+
+/* ==========================================================================
+   Responsive
+   ========================================================================== */
+@media (max-width: 980px) {
+  .hero .container { grid-template-columns: 1fr; }
+  .hero-visual { order: -1; }
+  .positioning .container { grid-template-columns: 1fr; }
+  .feature-grid { grid-template-columns: repeat(2, 1fr); }
+  .steps-grid { grid-template-columns: repeat(2, 1fr); }
+  .pricing-grid { grid-template-columns: 1fr; max-width: 440px; margin: 0 auto; }
+  .footer .container { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 760px) {
+  .nav-links, .header-cta .link-signin { display: none; }
+  .nav-toggle { display: flex; }
+  section { padding: 64px 0; }
+  .feature-grid { grid-template-columns: 1fr; }
+  .steps-grid { grid-template-columns: 1fr; }
+  .footer .container { grid-template-columns: 1fr; gap: 32px; }
+  .hero-floating { display: none; }
+  .form-row { grid-template-columns: 1fr; }
+  .contact-form { padding: 28px 22px; }
+}
+
+/* Mobile nav drawer */
+.mobile-nav {
+  display: none;
+  position: fixed;
+  top: 76px;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: var(--color-bg);
+  z-index: 99;
+  padding: 28px 24px;
+  transform: translateY(-12px);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+.mobile-nav.open {
+  display: block;
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+.mobile-nav a {
+  display: block;
+  font-size: 18px;
+  font-weight: 600;
+  padding: 16px 0;
+  border-bottom: 1px solid var(--color-border);
+}
+.mobile-nav .btn { margin-top: 24px; }
+.nav-toggle.active span { background: transparent; }
+.nav-toggle.active span::before { transform: rotate(45deg); top: 0; }
+.nav-toggle.active span::after { transform: rotate(-45deg); top: 0; }
+</style>
+</head>
+<body>
+
+<header class="header">
+  <div class="container">
+    <a href="#" class="logo">
+      <span class="logo-mark">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+      </span>
+      FonoIA
+    </a>
+
+    <nav class="nav-links">
+      <a href="#funcionalidades">Funcionalidades</a>
+      <a href="#como-funciona">Cómo funciona</a>
+      <a href="#precios">Precios</a>
+      <a href="#faq">Preguntas frecuentes</a>
+      <a href="#contacto">Contacto</a>
+    </nav>
+
+    <div class="header-cta">
+      <a href="app/login.html" class="link-signin">Iniciar sesión</a>
+      <a href="app/login.html?tab=signup" class="btn btn-primary">Probar gratis</a>
+    </div>
+
+    <button class="nav-toggle" aria-label="Abrir menú"><span></span></button>
+  </div>
+</header>
+
+<div class="mobile-nav">
+  <a href="#funcionalidades">Funcionalidades</a>
+  <a href="#como-funciona">Cómo funciona</a>
+  <a href="#precios">Precios</a>
+  <a href="#faq">Preguntas frecuentes</a>
+  <a href="#contacto">Contacto</a>
+  <a href="app/login.html?tab=signup" class="btn btn-primary btn-block">Probar gratis</a>
+</div>
+
+<main>
+
+  <!-- HERO -->
+  <section class="hero">
+    <div class="hero-blob"></div>
+    <div class="container">
+      <div class="hero-content">
+        <span class="eyebrow">Hecho para fonoaudiólogos</span>
+        <h1>Menos papeleo, <em>más sesión.</em><br>Tus informes, escritos por IA.</h1>
+        <p class="lead">FonoIA graba tu sesión, la transcribe y genera el informe de evolución fonoaudiológica automáticamente — con el formato que vos elijas. Historia clínica, objetivos terapéuticos y evaluaciones, todo en un solo lugar.</p>
+        <div class="hero-actions">
+          <a href="app/login.html?tab=signup" class="btn btn-primary btn-lg">Empezar gratis</a>
+          <a href="#como-funciona" class="btn btn-secondary btn-lg">Ver cómo funciona</a>
+        </div>
+        <div class="hero-meta">
+          <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg> Sin tarjeta de crédito</span>
+          <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg> Pensado para consulta individual</span>
+          <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg> Datos cifrados</span>
+        </div>
+      </div>
+
+      <div class="hero-visual">
+        <div class="hero-floating f1">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/></svg>
+          Transcribiendo sesión...
+        </div>
+
+        <div class="hero-card">
+          <div class="hero-card-top">
+            <span class="tag">Sesión · Trastorno articulatorio /r/</span>
+            <span class="rec"><span class="rec-dot"></span> Grabando</span>
+          </div>
+          <div class="transcript-lines">
+            <div class="transcript-line full"></div>
+            <div class="transcript-line med"></div>
+            <div class="transcript-line short"></div>
+            <div class="transcript-line med"></div>
+          </div>
+          <div class="hero-card-arrow">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M19 12l-7 7-7-7"/></svg>
+            FonoIA genera el informe
+          </div>
+          <div class="report-preview">
+            <h4>Informe de evolución — Borrador generado</h4>
+            <div class="report-line"></div>
+            <div class="report-line"></div>
+            <div class="report-line"></div>
+          </div>
+        </div>
+
+        <div class="hero-floating f2">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+          Objetivo alcanzado esta semana
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="trust-strip container">
+    <p>Diseñado junto a fonoaudiólogos de</p>
+    <div class="trust-tags">
+      <span>🇺🇾 Uruguay</span>
+      <span>🇦🇷 Argentina</span>
+      <span>🇨🇱 Chile</span>
+      <span>🇨🇴 Colombia</span>
+      <span>🇲🇽 México</span>
+      <span>🇵🇪 Perú</span>
+    </div>
+  </div>
+
+  <!-- POSITIONING: por qué no una plataforma de clínicas -->
+  <section class="positioning">
+    <div class="container">
+      <div>
+        <span class="eyebrow">Por qué FonoIA es distinto</span>
+        <h2>No es un software de clínicas con el logo cambiado.</h2>
+        <p class="lead">La mayoría de las plataformas de gestión clínica están pensadas para administrar consultorios: agendas de varios profesionales, cobros, recepcionistas. Si trabajás solo/a, eso es ruido. FonoIA se queda solo con lo que te hace falta como fonoaudiólogo.</p>
+      </div>
+      <div class="compare-list">
+        <div class="compare-item yes">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+          <div><strong>Historia clínica y evolución del paciente</strong><span>El corazón de tu práctica clínica, siempre a mano.</span></div>
+        </div>
+        <div class="compare-item yes">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+          <div><strong>Informes generados con IA</strong><span>De la sesión al documento final, en minutos.</span></div>
+        </div>
+        <div class="compare-item no">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          <div><strong>Agenda multi-profesional y facturación de clínica</strong><span>Lo dejamos afuera a propósito.</span></div>
+        </div>
+        <div class="compare-item no">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          <div><strong>Módulos de recepción y notificaciones</strong><span>Menos pantallas, menos configuración.</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FEATURES -->
+  <section class="features" id="funcionalidades">
+    <div class="container">
+      <div class="section-head">
+        <span class="eyebrow">Funcionalidades</span>
+        <h2>Todo lo clínico. Nada de lo administrativo.</h2>
+        <p>Pensado desde cero para el trabajo real de un fonoaudiólogo independiente.</p>
+      </div>
+
+      <div class="feature-grid">
+        <div class="feature-card">
+          <div class="feature-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="13" y2="17"/></svg>
+          </div>
+          <h3>Historia clínica centralizada</h3>
+          <p>Toda la información de cada paciente en un mismo lugar: antecedentes, evaluaciones, evolución y documentos.</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+          </div>
+          <h3>Importá tu historial existente</h3>
+          <p>Subí fichas en PDF, Word o planillas — o dejá que se vaya armando sola a medida que usás la plataforma.</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+          </div>
+          <h3>Notas de voz con transcripción</h3>
+          <p>Registrá la sesión hablando. FonoIA transcribe automáticamente y arma la nota clínica por vos.</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a10 10 0 1 0 10 10"/><path d="M12 2a10 10 0 0 1 10 10h-10Z"/></svg>
+          </div>
+          <h3>Informes generados con IA</h3>
+          <p>A partir de tus notas, FonoIA redacta el informe de evolución listo para revisar y enviar.</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+          </div>
+          <h3>Formatos de informe a tu medida</h3>
+          <p>Elegí entre plantillas predefinidas o cargá tu propio formato para que la IA lo respete siempre.</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15V6M18.5 18a2.5 2.5 0 1 0 0-5H15a2.5 2.5 0 0 0 0 5h3.5"/><path d="M3 6h13"/><path d="M3 12h9"/><path d="M3 18h6"/></svg>
+          </div>
+          <h3>Exportación multi-formato</h3>
+          <p>Descargá tus informes en PDF o Word, listos para compartir con pacientes, familias u otros profesionales.</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+          </div>
+          <h3>Evaluación diagnóstica digital</h3>
+          <p>Aplicá pruebas y protocolos de evaluación del habla y el lenguaje directamente desde la plataforma.</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
+          </div>
+          <h3>Seguimiento de objetivos terapéuticos</h3>
+          <p>Definí metas por paciente y visualizá el avance sesión a sesión de forma clara.</p>
+          <span class="soon">Próximamente</span>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>
+          </div>
+          <h3>Pensado para el celular</h3>
+          <p>Cargá una nota entre pacientes o revisá una historia clínica desde donde estés.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- HOW IT WORKS -->
+  <section class="steps" id="como-funciona">
+    <div class="container">
+      <div class="section-head">
+        <span class="eyebrow">Cómo funciona</span>
+        <h2>De la sesión al informe, en 4 pasos.</h2>
+        <p>Sin cambiar tu forma de trabajar.</p>
+      </div>
+
+      <div class="steps-grid">
+        <div class="step-card">
+          <div class="step-num">1</div>
+          <h3>Registrá la sesión</h3>
+          <p>Grabá tus observaciones por voz o escribí la nota como siempre lo hacés.</p>
+        </div>
+        <div class="step-card">
+          <div class="step-num">2</div>
+          <h3>FonoIA transcribe</h3>
+          <p>La nota se transcribe automáticamente y queda guardada en la historia del paciente.</p>
+        </div>
+        <div class="step-card">
+          <div class="step-num">3</div>
+          <h3>Se genera el informe</h3>
+          <p>La IA redacta el informe de evolución usando el formato que vos definiste.</p>
+        </div>
+        <div class="step-card">
+          <div class="step-num">4</div>
+          <h3>Revisás y exportás</h3>
+          <p>Ajustás lo que necesites y lo exportás en el formato que prefieras.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- QUOTE -->
+  <section class="quote-band">
+    <div class="container">
+      <div class="quote-box">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M9.983 3v7.391c0 5.704-3.731 9.57-8.983 10.609l-.995-2.151c2.432-.917 3.995-3.038 3.995-5.849h-4v-10h9.983zm14.017 0v7.391c0 5.704-3.748 9.571-9 10.609l-.996-2.151c2.433-.917 3.996-3.038 3.996-5.849h-3.983v-10h9.983z"/></svg>
+        <p class="quote-text">Por fin una herramienta que entiende que trabajo solo/a, no en una clínica de veinte profesionales.</p>
+        <div class="quote-author">
+          <div class="quote-avatar">MC</div>
+          <div>
+            <div class="quote-author-name">Fonoaudióloga independiente</div>
+            <div class="quote-author-role">Consulta privada, Montevideo</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- PRICING -->
+  <section class="pricing" id="precios">
+    <div class="container">
+      <div class="section-head">
+        <span class="eyebrow">Precios</span>
+        <h2>Gratis durante el beta.</h2>
+        <p>FonoIA está en etapa temprana. Mientras tanto, usalo sin costo y ayudanos a darle forma.</p>
+      </div>
+
+      <div class="pricing-grid pricing-grid-single">
+        <div class="price-card featured">
+          <span class="price-badge">Beta abierta</span>
+          <h3>Gratis</h3>
+          <p class="price-sub">Acceso completo mientras dure el beta</p>
+          <div class="price-amount"><span class="num">$0</span><span class="period">/ mes</span></div>
+          <ul class="price-features">
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg> Historia clínica centralizada</li>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg> Notas de voz con transcripción</li>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg> Informes generados con IA</li>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg> Evaluación diagnóstica digital</li>
+          </ul>
+          <a href="app/login.html?tab=signup" class="btn btn-primary btn-block">Sumarme al beta</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FAQ -->
+  <section class="faq" id="faq">
+    <div class="container">
+      <div class="section-head">
+        <span class="eyebrow">Preguntas frecuentes</span>
+        <h2>Todo lo que necesitás saber</h2>
+      </div>
+
+      <div class="faq-list">
+        <div class="faq-item open">
+          <button class="faq-question">¿FonoIA sirve para clínicas con varios profesionales?
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          </button>
+          <div class="faq-answer"><div class="faq-answer-inner">No es el foco. FonoIA está pensado para fonoaudiólogos que trabajan de forma independiente o en consulta propia, sin las funciones de agenda multi-profesional, facturación de clínica o recepción que no necesitás si trabajás solo/a.</div></div>
+        </div>
+        <div class="faq-item">
+          <button class="faq-question">¿Cómo funciona la generación de informes con IA?
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          </button>
+          <div class="faq-answer"><div class="faq-answer-inner">A partir de tus notas de sesión (escritas o transcriptas por voz), FonoIA redacta un borrador de informe de evolución siguiendo el formato que elijas. Vos siempre revisás y ajustás antes de exportarlo.</div></div>
+        </div>
+        <div class="faq-item">
+          <button class="faq-question">¿Puedo usar mi propio formato de informe?
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          </button>
+          <div class="faq-answer"><div class="faq-answer-inner">Sí. Podés elegir entre plantillas predefinidas o cargar tu propio formato de informe para que la IA lo respete cada vez que genera un documento nuevo.</div></div>
+        </div>
+        <div class="faq-item">
+          <button class="faq-question">¿Qué pasa con los datos de mis pacientes?
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          </button>
+          <div class="faq-answer"><div class="faq-answer-inner">Toda la información se almacena cifrada. Sos vos quien decide qué se sube y qué se comparte, y podés exportar o eliminar tus datos cuando quieras.</div></div>
+        </div>
+        <div class="faq-item">
+          <button class="faq-question">¿Puedo cancelar en cualquier momento?
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          </button>
+          <div class="faq-answer"><div class="faq-answer-inner">Sí, no hay permanencia mínima. Podés cancelar tu suscripción cuando quieras desde tu cuenta.</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CONTACT -->
+  <section class="contact" id="contacto">
+    <div class="container">
+      <div class="section-head">
+        <span class="eyebrow">Contacto</span>
+        <h2>¿Querés sumarte al beta o tenés una duda?</h2>
+        <p>Escribinos y te respondemos directamente a tu correo.</p>
+      </div>
+
+      <form class="contact-form" id="contact-form">
+        <input type="hidden" name="access_key" value="YOUR_WEB3FORMS_ACCESS_KEY" />
+        <input type="hidden" name="subject" value="Nuevo mensaje desde FonoIA" />
+        <input type="checkbox" name="botcheck" class="hidden-field" tabindex="-1" autocomplete="off" />
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="cf-name">Nombre</label>
+            <input type="text" id="cf-name" name="name" placeholder="Tu nombre" required />
+          </div>
+          <div class="form-group">
+            <label for="cf-email">Email</label>
+            <input type="email" id="cf-email" name="email" placeholder="tu@email.com" required />
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="cf-message">Mensaje</label>
+          <textarea id="cf-message" name="message" rows="5" placeholder="Contanos en qué trabajás y qué te gustaría que resuelva FonoIA" required></textarea>
+        </div>
+
+        <button type="submit" class="btn btn-primary btn-lg btn-block">Enviar mensaje</button>
+        <p class="form-status" aria-live="polite"></p>
+      </form>
+    </div>
+  </section>
+
+  <!-- FINAL CTA -->
+  <section>
+    <div class="container">
+      <div class="final-cta">
+        <div class="final-cta-inner">
+          <h2>Dedicale tu tiempo a tus pacientes, no al papeleo.</h2>
+          <p>Probá FonoIA gratis y generá tu primer informe con IA en minutos.</p>
+          <div class="hero-actions">
+            <a href="app/login.html?tab=signup" class="btn btn-primary btn-lg">Sumarme al beta</a>
+            <a href="#contacto" class="btn btn-ghost-light btn-lg">Agendar una demo</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer class="footer">
+  <div class="container">
+    <div class="footer-brand">
+      <a href="#" class="logo">
+        <span class="logo-mark">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+        </span>
+        FonoIA
+      </a>
+      <p>Software de gestión clínica con IA, hecho a medida para fonoaudiólogos independientes.</p>
+    </div>
+    <div>
+      <h4>Producto</h4>
+      <div class="footer-links">
+        <a href="#funcionalidades">Funcionalidades</a>
+        <a href="#como-funciona">Cómo funciona</a>
+        <a href="#precios">Precios</a>
+      </div>
+    </div>
+    <div>
+      <h4>Compañía</h4>
+      <div class="footer-links">
+        <a href="#faq">Preguntas frecuentes</a>
+        <a href="#contacto">Contacto</a>
+        <a href="#">Privacidad</a>
+      </div>
+    </div>
+    <div>
+      <h4>Ubicación</h4>
+      <div class="footer-links">
+        <span>Uruguay</span>
+      </div>
+    </div>
+  </div>
+  <div class="footer-bottom">
+    © 2026 FonoIA. Todos los derechos reservados.
+  </div>
+</footer>
+
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+  // Mobile nav toggle
+  const toggle = document.querySelector(".nav-toggle");
+  const mobileNav = document.querySelector(".mobile-nav");
+  if (toggle && mobileNav) {
+    toggle.addEventListener("click", () => {
+      mobileNav.classList.toggle("open");
+      toggle.classList.toggle("active");
+    });
+  }
+
+  // FAQ accordion
+  document.querySelectorAll(".faq-item").forEach((item) => {
+    const question = item.querySelector(".faq-question");
+    question.addEventListener("click", () => {
+      const isOpen = item.classList.contains("open");
+      document.querySelectorAll(".faq-item.open").forEach((el) => el.classList.remove("open"));
+      if (!isOpen) item.classList.add("open");
+    });
+  });
+
+  // Close mobile nav when a link is clicked
+  document.querySelectorAll(".mobile-nav a").forEach((link) => {
+    link.addEventListener("click", () => {
+      mobileNav?.classList.remove("open");
+      toggle?.classList.remove("active");
+    });
+  });
+
+  // Contact form (Web3Forms)
+  const contactForm = document.getElementById("contact-form");
+  if (contactForm) {
+    const status = contactForm.querySelector(".form-status");
+    const submitBtn = contactForm.querySelector("button[type=submit]");
+
+    contactForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      submitBtn.disabled = true;
+      status.textContent = "Enviando...";
+      status.className = "form-status";
+
+      try {
+        const response = await fetch("https://api.web3forms.com/submit", {
+          method: "POST",
+          headers: { Accept: "application/json" },
+          body: new FormData(contactForm),
+        });
+        const result = await response.json();
+
+        if (result.success) {
+          status.textContent = "¡Gracias! Tu mensaje fue enviado.";
+          status.classList.add("success");
+          contactForm.reset();
+        } else {
+          throw new Error(result.message || "Error al enviar");
+        }
+      } catch (err) {
+        status.textContent = "No se pudo enviar el mensaje. Probá de nuevo o escribinos directamente.";
+        status.classList.add("error");
+      } finally {
+        submitBtn.disabled = false;
+      }
+    });
+  }
+});
+</script>
+</body>
+</html>

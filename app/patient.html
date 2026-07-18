@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Paciente — FonoIA</title>
+<link rel="stylesheet" href="../assets/app.css" />
+</head>
+<body>
+
+<header class="app-header">
+  <div class="app-header-inner">
+    <div class="app-logo">
+      <span class="mark">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+      </span>
+      FonoIA
+    </div>
+    <div class="app-user">
+      <span id="user-email"></span>
+      <button class="btn btn-secondary" id="btn-logout">Cerrar sesión</button>
+    </div>
+  </div>
+</header>
+
+<main class="app-main">
+  <div id="loading" class="loading-state">Cargando paciente...</div>
+
+  <div id="content" style="display:none">
+    <a href="dashboard.html" class="back">← Volver a mis pacientes</a>
+    <div class="app-main-header">
+      <h1 id="patient-name">—</h1>
+    </div>
+
+    <div class="stack">
+      <div class="card">
+        <p class="section-title">Historia clínica</p>
+        <form id="form-history">
+          <div class="field">
+            <label for="hist-diagnosis">Diagnóstico / motivo de consulta</label>
+            <input type="text" id="hist-diagnosis" />
+          </div>
+          <div class="field">
+            <label for="hist-text">Antecedentes y notas generales</label>
+            <textarea id="hist-text" rows="5" placeholder="Antecedentes, evaluaciones previas, contexto familiar, etc."></textarea>
+          </div>
+          <button type="submit" class="btn btn-secondary">Guardar historia clínica</button>
+          <p class="form-message" id="history-message"></p>
+        </form>
+      </div>
+
+      <div class="card">
+        <p class="section-title">Nueva nota de sesión</p>
+        <form id="form-note">
+          <div class="field">
+            <label for="note-date">Fecha</label>
+            <input type="date" id="note-date" required />
+          </div>
+          <div class="field">
+            <label for="note-content">Notas de la sesión</label>
+            <textarea id="note-content" rows="4" placeholder="¿Qué se trabajó? ¿Cómo respondió el paciente?" required></textarea>
+          </div>
+          <button type="submit" class="btn btn-primary">Guardar nota</button>
+          <button type="button" class="btn btn-secondary" id="btn-generate-report" disabled title="Próximamente">Generar informe con IA (próximamente)</button>
+          <p class="form-message" id="note-message"></p>
+        </form>
+      </div>
+
+      <div class="card">
+        <p class="section-title">Historial de sesiones</p>
+        <div id="notes-list"></div>
+        <p id="notes-empty" class="empty-state" style="display:none">Todavía no hay notas registradas.</p>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="../assets/supabase-config.js"></script>
+<script src="../assets/app-auth.js"></script>
+<script>
+  const params = new URLSearchParams(window.location.search);
+  const patientId = params.get("id");
+  let currentUserId = null;
+
+  (async () => {
+    if (!patientId) {
+      window.location.href = "dashboard.html";
+      return;
+    }
+    const session = await requireSession();
+    if (!session) return;
+    currentUserId = session.user.id;
+    document.getElementById("user-email").textContent = session.user.email;
+    document.getElementById("note-date").valueAsDate = new Date();
+
+    await loadPatient();
+    await loadNotes();
+  })();
+
+  document.getElementById("btn-logout").addEventListener("click", signOut);
+
+  async function loadPatient() {
+    const { data, error } = await sb.from("patients").select("*").eq("id", patientId).single();
+
+    if (error || !data) {
+      document.getElementById("loading").textContent = "No se encontró el paciente.";
+      return;
+    }
+
+    document.getElementById("patient-name").textContent = data.name;
+    document.getElementById("hist-diagnosis").value = data.diagnosis || "";
+    document.getElementById("hist-text").value = data.history || "";
+
+    document.getElementById("loading").style.display = "none";
+    document.getElementById("content").style.display = "block";
+  }
+
+  document.getElementById("form-history").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const msg = document.getElementById("history-message");
+    msg.textContent = "Guardando...";
+    msg.className = "form-message";
+
+    const { error } = await sb.from("patients").update({
+      diagnosis: document.getElementById("hist-diagnosis").value || null,
+      history: document.getElementById("hist-text").value || null,
+    }).eq("id", patientId);
+
+    msg.textContent = error ? error.message : "Guardado.";
+    msg.className = error ? "form-message error" : "form-message success";
+  });
+
+  async function loadNotes() {
+    const { data, error } = await sb
+      .from("session_notes")
+      .select("*")
+      .eq("patient_id", patientId)
+      .order("session_date", { ascending: false });
+
+    const list = document.getElementById("notes-list");
+    const empty = document.getElementById("notes-empty");
+
+    if (error) {
+      list.innerHTML = `<p class="form-message error">${error.message}</p>`;
+      return;
+    }
+
+    if (!data.length) {
+      empty.style.display = "block";
+      list.innerHTML = "";
+      return;
+    }
+
+    empty.style.display = "none";
+    list.innerHTML = data.map((n) => `
+      <div class="note-item">
+        <span class="note-date">${formatDate(n.session_date)}</span>
+        <p>${escapeHtml(n.content)}</p>
+      </div>
+    `).join("");
+  }
+
+  document.getElementById("form-note").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const msg = document.getElementById("note-message");
+    msg.textContent = "Guardando...";
+    msg.className = "form-message";
+
+    const { error } = await sb.from("session_notes").insert({
+      patient_id: patientId,
+      user_id: currentUserId,
+      session_date: document.getElementById("note-date").value,
+      content: document.getElementById("note-content").value,
+    });
+
+    if (error) {
+      msg.textContent = error.message;
+      msg.classList.add("error");
+      return;
+    }
+
+    document.getElementById("note-content").value = "";
+    msg.textContent = "Nota guardada.";
+    msg.classList.add("success");
+    loadNotes();
+  });
+
+  function escapeHtml(str) {
+    const div = document.createElement("div");
+    div.textContent = str;
+    return div.innerHTML;
+  }
+
+  function formatDate(isoDate) {
+    const [y, m, d] = isoDate.split("-");
+    return `${d}/${m}/${y}`;
+  }
+</script>
+</body>
+</html>
