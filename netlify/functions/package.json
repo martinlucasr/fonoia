@@ -1,0 +1,8 @@
+{
+  "name": "fonoia-functions",
+  "private": true,
+  "dependencies": {
+    "mammoth": "^1.7.0",
+    "pdf-parse": "^1.1.1"
+  }
+}

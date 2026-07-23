@@ -165,6 +165,43 @@ p { margin: 0; }
 
 .loading-state { text-align: center; padding: 40px; color: var(--color-ink-soft); font-size: 14px; }
 
+/* Collapsible cards */
+.card-header-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+.card-header-row .section-title { margin-bottom: 0; }
+.link-toggle {
+  background: none; border: none; font-size: 13.5px; font-weight: 600;
+  color: var(--color-primary-dark); padding: 4px 0;
+}
+.link-toggle:hover { text-decoration: underline; }
+.card-hint { font-size: 13px; color: var(--color-ink-soft); margin-bottom: 14px; }
+
+.history-summary { padding: 4px 0 6px; }
+.history-summary .diagnosis { font-weight: 700; font-size: 14.5px; }
+.history-summary .excerpt { margin-top: 6px; font-size: 13.5px; color: var(--color-ink-soft); }
+
+.notes-count { font-size: 13.5px; color: var(--color-ink-soft); }
+
+/* Voice / file toolbar above a textarea */
+.field-toolbar { display: flex; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
+.btn-icon {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: var(--color-bg); border: 1px solid var(--color-border);
+  border-radius: 999px; padding: 6px 12px; font-size: 12.5px; font-weight: 600;
+  color: var(--color-ink-soft);
+}
+.btn-icon:hover { border-color: var(--color-primary); color: var(--color-primary-dark); }
+.btn-icon[disabled] { opacity: 0.6; cursor: not-allowed; }
+.btn-icon.recording { background: #FDF0EE; border-color: #F3D2CC; color: #C0392B; }
+.btn-icon.recording::before {
+  content: ""; width: 7px; height: 7px; border-radius: 50%; background: #C0392B;
+  animation: pulse-rec 1.2s infinite;
+}
+@keyframes pulse-rec {
+  0% { box-shadow: 0 0 0 0 rgba(192,57,43,0.5); }
+  70% { box-shadow: 0 0 0 6px rgba(192,57,43,0); }
+  100% { box-shadow: 0 0 0 0 rgba(192,57,43,0); }
+}
+
 @media (max-width: 640px) {
   .app-main { padding: 28px 16px; }
   .auth-card { padding: 28px 22px; }
