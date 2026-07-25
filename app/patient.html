@@ -30,42 +30,13 @@
     <a href="dashboard.html" class="back">← Volver a mis pacientes</a>
     <div class="app-main-header">
       <h1 id="patient-name">—</h1>
+      <button type="button" class="btn-corner" id="btn-open-history">📋 Historia clínica</button>
     </div>
 
     <div class="stack">
 
-      <!-- HISTORIA CLÍNICA (plegable) -->
-      <div class="card" id="history-card">
-        <div class="card-header-row">
-          <p class="section-title">Historia clínica</p>
-          <button type="button" class="link-toggle" id="btn-toggle-history">Editar ▾</button>
-        </div>
-
-        <div id="history-summary" class="history-summary" style="display:none">
-          <p class="diagnosis" id="history-summary-diagnosis"></p>
-          <p class="excerpt" id="history-summary-excerpt"></p>
-        </div>
-
-        <form id="form-history">
-          <div class="field">
-            <label for="hist-diagnosis">Diagnóstico / motivo de consulta</label>
-            <input type="text" id="hist-diagnosis" />
-          </div>
-          <div class="field">
-            <label for="hist-text">Antecedentes y notas generales</label>
-            <div class="field-toolbar">
-              <button type="button" class="btn-icon" id="file-btn-hist-text">📄 Cargar documento (PDF/Word)</button>
-              <input type="file" id="file-input-hist-text" accept=".pdf,.docx" hidden />
-            </div>
-            <textarea id="hist-text" rows="5" placeholder="Antecedentes, evaluaciones previas, contexto familiar, etc."></textarea>
-          </div>
-          <button type="submit" class="btn btn-secondary">Guardar historia clínica</button>
-          <p class="form-message" id="history-message"></p>
-        </form>
-      </div>
-
-      <!-- NUEVA NOTA DE SESIÓN -->
-      <div class="card">
+      <!-- NUEVA NOTA DE SESIÓN (destacada, es lo de más uso) -->
+      <div class="card card-featured">
         <p class="section-title">Nueva nota de sesión</p>
         <form id="form-note">
           <div class="field">
@@ -86,21 +57,33 @@
         </form>
       </div>
 
-      <!-- HISTORIAL DE SESIONES (plegable) -->
+      <!-- HISTORIAL DE SESIONES (plegable, editable, con rango) -->
       <div class="card">
         <div class="card-header-row">
           <p class="section-title">Historial de sesiones</p>
           <button type="button" class="link-toggle" id="btn-toggle-notes">Ver historial ▾</button>
         </div>
         <p class="notes-count" id="notes-count"></p>
-        <div id="notes-list" style="display:none"></div>
-        <p id="notes-empty" class="empty-state" style="display:none">Todavía no hay notas registradas.</p>
+        <div id="notes-body" style="display:none">
+          <div class="notes-controls">
+            <label for="notes-range">Ver</label>
+            <select id="notes-range">
+              <option value="1">Último mes</option>
+              <option value="3">Últimos 3 meses</option>
+              <option value="6" selected>Últimos 6 meses</option>
+              <option value="12">Último año</option>
+              <option value="all">Todo</option>
+            </select>
+          </div>
+          <div id="notes-list"></div>
+          <p id="notes-empty" class="empty-state" style="display:none"></p>
+        </div>
       </div>
 
       <!-- CONSIDERACIONES + GENERAR INFORME -->
       <div class="card">
         <p class="section-title">Consideraciones para el informe</p>
-        <p class="card-hint">Cosas que consideres relevantes para el informe y que no queden explícitas en las notas de sesión (contexto familiar, objetivos a mediano plazo, etc.).</p>
+        <p class="card-hint">Elementos clínicos o de otra índole que consideres relevantes para el informe, y que no queden explícitos en las notas de sesión.</p>
         <form id="form-considerations">
           <div class="field">
             <div class="field-toolbar">
@@ -108,7 +91,7 @@
               <button type="button" class="btn-icon" id="file-btn-considerations">📄 Cargar documento (PDF/Word)</button>
               <input type="file" id="file-input-considerations" accept=".pdf,.docx" hidden />
             </div>
-            <textarea id="considerations-text" rows="4" placeholder="Ej: contexto familiar reciente, factores que influyen en la motivación, objetivos a mediano plazo..."></textarea>
+            <textarea id="considerations-text" rows="4" placeholder="Ej: contexto familiar reciente, factores motivacionales, objetivos a mediano plazo..."></textarea>
           </div>
           <button type="submit" class="btn btn-secondary">Guardar consideraciones</button>
           <p class="form-message" id="considerations-message"></p>
@@ -121,6 +104,32 @@
   </div>
 </main>
 
+<!-- MODAL: historia clínica -->
+<div class="modal-backdrop" id="history-modal-backdrop">
+  <div class="modal modal-wide">
+    <h2>Historia clínica</h2>
+    <form id="form-history">
+      <div class="field">
+        <label for="hist-diagnosis">Diagnóstico / motivo de consulta</label>
+        <input type="text" id="hist-diagnosis" />
+      </div>
+      <div class="field">
+        <label for="hist-text">Antecedentes y notas generales</label>
+        <div class="field-toolbar">
+          <button type="button" class="btn-icon" id="file-btn-hist-text">📄 Cargar documento (PDF/Word)</button>
+          <input type="file" id="file-input-hist-text" accept=".pdf,.docx" hidden />
+        </div>
+        <textarea id="hist-text" rows="6" placeholder="Antecedentes, evaluaciones previas, contexto familiar, etc."></textarea>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-secondary" id="btn-close-history">Cerrar</button>
+        <button type="submit" class="btn btn-primary">Guardar</button>
+      </div>
+      <p class="form-message" id="history-message"></p>
+    </form>
+  </div>
+</div>
+
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="../assets/supabase-config.js"></script>
 <script src="../assets/app-auth.js"></script>
@@ -129,6 +138,8 @@
   const params = new URLSearchParams(window.location.search);
   const patientId = params.get("id");
   let currentUserId = null;
+  let currentRangeMonths = "6";
+  let totalNotesCount = 0;
 
   (async () => {
     if (!patientId) {
@@ -165,6 +176,16 @@
 
   document.getElementById("btn-logout").addEventListener("click", signOut);
 
+  // ---------- Historia clínica (modal) ----------
+  function openHistoryModal() {
+    document.getElementById("history-modal-backdrop").classList.add("open");
+  }
+  function closeHistoryModal() {
+    document.getElementById("history-modal-backdrop").classList.remove("open");
+  }
+  document.getElementById("btn-open-history").addEventListener("click", openHistoryModal);
+  document.getElementById("btn-close-history").addEventListener("click", closeHistoryModal);
+
   async function loadPatient() {
     const { data, error } = await sb.from("patients").select("*").eq("id", patientId).single();
 
@@ -177,41 +198,17 @@
     document.getElementById("hist-diagnosis").value = data.diagnosis || "";
     document.getElementById("hist-text").value = data.history || "";
     document.getElementById("considerations-text").value = data.report_considerations || "";
+    document.getElementById("btn-open-history").textContent = data.diagnosis
+      ? `📋 ${data.diagnosis}`
+      : "📋 Historia clínica";
 
-    if (data.diagnosis || data.history) {
-      collapseHistory(data.diagnosis, data.history);
-    } else {
-      expandHistory();
+    if (!data.diagnosis && !data.history) {
+      openHistoryModal();
     }
 
     document.getElementById("loading").style.display = "none";
     document.getElementById("content").style.display = "block";
   }
-
-  function collapseHistory(diagnosis, history) {
-    document.getElementById("form-history").style.display = "none";
-    document.getElementById("history-summary").style.display = "block";
-    document.getElementById("history-summary-diagnosis").textContent = diagnosis || "Sin diagnóstico registrado";
-    const excerpt = (history || "").slice(0, 160);
-    document.getElementById("history-summary-excerpt").textContent =
-      excerpt + (history && history.length > 160 ? "…" : "");
-    document.getElementById("btn-toggle-history").textContent = "Editar ▾";
-  }
-
-  function expandHistory() {
-    document.getElementById("form-history").style.display = "block";
-    document.getElementById("history-summary").style.display = "none";
-    document.getElementById("btn-toggle-history").textContent = "Ocultar ▲";
-  }
-
-  document.getElementById("btn-toggle-history").addEventListener("click", () => {
-    const isCollapsed = document.getElementById("form-history").style.display === "none";
-    if (isCollapsed) {
-      expandHistory();
-    } else {
-      collapseHistory(document.getElementById("hist-diagnosis").value, document.getElementById("hist-text").value);
-    }
-  });
 
   document.getElementById("form-history").addEventListener("submit", async (e) => {
     e.preventDefault();
@@ -231,7 +228,8 @@
     }
 
     msg.textContent = "";
-    collapseHistory(diagnosis, history);
+    document.getElementById("btn-open-history").textContent = diagnosis ? `📋 ${diagnosis}` : "📋 Historia clínica";
+    closeHistoryModal();
   });
 
   document.getElementById("form-considerations").addEventListener("submit", async (e) => {
@@ -248,16 +246,40 @@
     msg.className = error ? "form-message error" : "form-message success";
   });
 
+  // ---------- Historial de sesiones ----------
+  document.getElementById("btn-toggle-notes").addEventListener("click", () => {
+    const body = document.getElementById("notes-body");
+    const btn = document.getElementById("btn-toggle-notes");
+    const isHidden = body.style.display === "none";
+    body.style.display = isHidden ? "block" : "none";
+    btn.textContent = isHidden ? "Ocultar historial ▲" : "Ver historial ▾";
+  });
+
+  document.getElementById("notes-range").addEventListener("change", (e) => {
+    currentRangeMonths = e.target.value;
+    loadNotes();
+  });
+
   async function loadNotes() {
-    const { data, error } = await sb
+    const { count: total } = await sb
       .from("session_notes")
-      .select("*")
-      .eq("patient_id", patientId)
-      .order("session_date", { ascending: false });
+      .select("id", { count: "exact", head: true })
+      .eq("patient_id", patientId);
+    totalNotesCount = total || 0;
+
+    let query = sb.from("session_notes").select("*").eq("patient_id", patientId);
+    if (currentRangeMonths !== "all") {
+      const cutoff = new Date();
+      cutoff.setMonth(cutoff.getMonth() - parseInt(currentRangeMonths, 10));
+      query = query.gte("session_date", cutoff.toISOString().slice(0, 10));
+    }
+    const { data, error } = await query.order("session_date", { ascending: false });
 
     const list = document.getElementById("notes-list");
     const empty = document.getElementById("notes-empty");
-    const count = document.getElementById("notes-count");
+    const countEl = document.getElementById("notes-count");
+
+    countEl.textContent = `${totalNotesCount} nota${totalNotesCount === 1 ? "" : "s"} registrada${totalNotesCount === 1 ? "" : "s"} en total`;
 
     if (error) {
       list.innerHTML = `<p class="form-message error">${error.message}</p>`;
@@ -265,29 +287,65 @@
     }
 
     if (!data.length) {
-      count.textContent = "";
+      empty.textContent = totalNotesCount === 0
+        ? "Todavía no hay notas registradas."
+        : "No hay notas en el período seleccionado.";
       empty.style.display = "block";
       list.innerHTML = "";
       return;
     }
 
     empty.style.display = "none";
-    count.textContent = `${data.length} nota${data.length === 1 ? "" : "s"} registrada${data.length === 1 ? "" : "s"}`;
     list.innerHTML = data.map((n) => `
-      <div class="note-item">
-        <span class="note-date">${formatDate(n.session_date)}</span>
-        <p>${escapeHtml(n.content)}</p>
+      <div class="note-item" data-id="${n.id}" data-date="${n.session_date}">
+        <div class="note-item-header">
+          <span class="note-date">${formatDate(n.session_date)}</span>
+          <button type="button" class="btn-edit-note">Editar</button>
+        </div>
+        <p class="note-content-display">${escapeHtml(n.content)}</p>
       </div>
     `).join("");
   }
 
-  document.getElementById("btn-toggle-notes").addEventListener("click", () => {
-    const list = document.getElementById("notes-list");
-    const btn = document.getElementById("btn-toggle-notes");
-    const isHidden = list.style.display === "none";
-    list.style.display = isHidden ? "block" : "none";
-    btn.textContent = isHidden ? "Ocultar historial ▲" : "Ver historial ▾";
+  document.getElementById("notes-list").addEventListener("click", (e) => {
+    const btn = e.target.closest(".btn-edit-note");
+    if (!btn) return;
+    startEditNote(btn.closest(".note-item"));
   });
+
+  function startEditNote(item) {
+    const id = item.dataset.id;
+    const date = item.dataset.date;
+    const content = item.querySelector(".note-content-display").textContent;
+
+    item.innerHTML = `
+      <div class="note-edit-form">
+        <input type="date" class="edit-date" value="${date}" />
+        <textarea class="edit-content" rows="4">${escapeHtml(content)}</textarea>
+        <div class="edit-actions">
+          <button type="button" class="btn btn-secondary btn-cancel-edit">Cancelar</button>
+          <button type="button" class="btn btn-primary btn-save-edit">Guardar cambios</button>
+        </div>
+      </div>
+    `;
+
+    item.querySelector(".btn-cancel-edit").addEventListener("click", () => loadNotes());
+    item.querySelector(".btn-save-edit").addEventListener("click", async () => {
+      const newDate = item.querySelector(".edit-date").value;
+      const newContent = item.querySelector(".edit-content").value;
+
+      const { error } = await sb.from("session_notes").update({
+        session_date: newDate,
+        content: newContent,
+      }).eq("id", id);
+
+      if (error) {
+        alert("No se pudo guardar: " + error.message);
+        return;
+      }
+      loadNotes();
+    });
+  }
 
   document.getElementById("form-note").addEventListener("submit", async (e) => {
     e.preventDefault();

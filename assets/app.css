@@ -202,6 +202,38 @@ p { margin: 0; }
   100% { box-shadow: 0 0 0 0 rgba(192,57,43,0); }
 }
 
+/* Featured card (Nueva nota de sesión) */
+.card-featured { border: 2px solid var(--color-primary); box-shadow: var(--shadow-md); }
+
+/* Historia clínica trigger button (next to patient name) */
+.btn-corner {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: var(--color-surface); border: 1px solid var(--color-border);
+  border-radius: 999px; padding: 8px 16px; font-size: 13.5px; font-weight: 600;
+  color: var(--color-ink-soft);
+}
+.btn-corner:hover { border-color: var(--color-primary); color: var(--color-primary-dark); }
+
+.modal-wide { max-width: 560px; }
+
+/* Notes list controls (time range) */
+.notes-controls { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; }
+.notes-controls label { font-size: 13px; font-weight: 600; color: var(--color-ink-soft); }
+.notes-controls select {
+  padding: 7px 10px; border: 1px solid var(--color-border); border-radius: var(--radius-sm);
+  font-family: inherit; font-size: 13.5px; background: var(--color-bg);
+}
+
+.note-item-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.note-item .btn-edit-note {
+  background: none; border: none; font-size: 12.5px; font-weight: 600;
+  color: var(--color-primary-dark); padding: 2px 0;
+}
+.note-item .btn-edit-note:hover { text-decoration: underline; }
+.note-edit-form { margin-top: 10px; display: flex; flex-direction: column; gap: 10px; }
+.note-edit-form .edit-actions { display: flex; gap: 8px; }
+.note-edit-form .edit-actions .btn { padding: 8px 16px; font-size: 13.5px; }
+
 @media (max-width: 640px) {
   .app-main { padding: 28px 16px; }
   .auth-card { padding: 28px 22px; }
