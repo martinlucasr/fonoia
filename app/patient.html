@@ -97,7 +97,22 @@
           <p class="form-message" id="considerations-message"></p>
         </form>
 
-        <button type="button" class="btn btn-primary" id="btn-generate-report" disabled title="Próximamente" style="margin-top:18px">Generar informe con IA (próximamente)</button>
+        <button type="button" class="btn btn-primary" id="btn-generate-report" style="margin-top:18px">Generar informe con IA</button>
+      </div>
+
+      <!-- INFORME GENERADO -->
+      <div class="card" id="report-result-card" style="display:none">
+        <p class="section-title">Informe generado</p>
+        <p class="card-hint">Revisá y ajustá el texto antes de guardarlo o exportarlo — es un borrador generado por IA.</p>
+        <div class="field">
+          <textarea id="report-result-text" rows="14"></textarea>
+        </div>
+        <div class="report-actions">
+          <button type="button" class="btn btn-secondary" id="btn-copy-report">Copiar</button>
+          <button type="button" class="btn btn-secondary" id="btn-download-report">Descargar (.txt)</button>
+          <button type="button" class="btn btn-primary" id="btn-save-report">Guardar informe</button>
+        </div>
+        <p class="form-message" id="report-message"></p>
       </div>
 
     </div>
@@ -366,6 +381,87 @@
     msg.textContent = "Nota guardada.";
     msg.classList.add("success");
     loadNotes();
+  });
+
+  // ---------- Generar informe con IA ----------
+  document.getElementById("btn-generate-report").addEventListener("click", async () => {
+    const btn = document.getElementById("btn-generate-report");
+    const originalLabel = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = "Generando informe...";
+
+    try {
+      const { data: allNotes, error: notesError } = await sb
+        .from("session_notes")
+        .select("session_date, content")
+        .eq("patient_id", patientId)
+        .order("session_date", { ascending: true });
+      if (notesError) throw new Error(notesError.message);
+
+      const { data: { session } } = await sb.auth.getSession();
+      if (!session) throw new Error("Sesión expirada, volvé a iniciar sesión.");
+
+      const response = await fetch("/.netlify/functions/generate-report", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          patientName: document.getElementById("patient-name").textContent,
+          diagnosis: document.getElementById("hist-diagnosis").value,
+          history: document.getElementById("hist-text").value,
+          considerations: document.getElementById("considerations-text").value,
+          notes: allNotes || [],
+        }),
+      });
+
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "Error al generar el informe");
+
+      document.getElementById("report-result-text").value = result.report;
+      const card = document.getElementById("report-result-card");
+      card.style.display = "block";
+      card.scrollIntoView({ behavior: "smooth", block: "start" });
+    } catch (err) {
+      alert("No se pudo generar el informe: " + err.message);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = originalLabel;
+    }
+  });
+
+  document.getElementById("btn-copy-report").addEventListener("click", async () => {
+    await navigator.clipboard.writeText(document.getElementById("report-result-text").value);
+    const msg = document.getElementById("report-message");
+    msg.textContent = "Copiado al portapapeles.";
+    msg.className = "form-message success";
+  });
+
+  document.getElementById("btn-download-report").addEventListener("click", () => {
+    const text = document.getElementById("report-result-text").value;
+    const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `informe-${document.getElementById("patient-name").textContent.replace(/\s+/g, "-")}.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
+  });
+
+  document.getElementById("btn-save-report").addEventListener("click", async () => {
+    const msg = document.getElementById("report-message");
+    msg.textContent = "Guardando...";
+    msg.className = "form-message";
+
+    const { error } = await sb.from("reports").insert({
+      patient_id: patientId,
+      user_id: currentUserId,
+      content: document.getElementById("report-result-text").value,
+    });
+
+    msg.textContent = error ? error.message : "Informe guardado.";
+    msg.className = error ? "form-message error" : "form-message success";
   });
 
   function escapeHtml(str) {
