@@ -10,12 +10,12 @@
 
 <header class="app-header">
   <div class="app-header-inner">
-    <div class="app-logo">
+    <a href="dashboard.html" class="app-logo">
       <span class="mark">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
       </span>
       FonoIA
-    </div>
+    </a>
     <div class="app-user">
       <span id="user-email"></span>
       <button class="btn btn-secondary" id="btn-logout">Cerrar sesión</button>
@@ -83,7 +83,7 @@
       <!-- CONSIDERACIONES + GENERAR INFORME -->
       <div class="card">
         <p class="section-title">Consideraciones para el informe</p>
-        <p class="card-hint">Elementos clínicos o de otra índole que consideres relevantes para el informe, y que no queden explícitos en las notas de sesión.</p>
+        <p class="card-hint">Incluí acá antecedentes relevantes, factores psicosociales o contextuales, y cualquier otro elemento clínico que quieras que se refleje en el informe y que no surja de las notas de sesión.</p>
         <form id="form-considerations">
           <div class="field">
             <div class="field-toolbar">
@@ -198,9 +198,6 @@
     document.getElementById("hist-diagnosis").value = data.diagnosis || "";
     document.getElementById("hist-text").value = data.history || "";
     document.getElementById("considerations-text").value = data.report_considerations || "";
-    document.getElementById("btn-open-history").textContent = data.diagnosis
-      ? `📋 ${data.diagnosis}`
-      : "📋 Historia clínica";
 
     if (!data.diagnosis && !data.history) {
       openHistoryModal();
@@ -228,7 +225,6 @@
     }
 
     msg.textContent = "";
-    document.getElementById("btn-open-history").textContent = diagnosis ? `📋 ${diagnosis}` : "📋 Historia clínica";
     closeHistoryModal();
   });
 

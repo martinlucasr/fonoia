@@ -117,7 +117,7 @@ p { margin: 0; }
   max-width: 1040px; margin: 0 auto; height: 68px;
   display: flex; align-items: center; justify-content: space-between;
 }
-.app-logo { display: flex; align-items: center; gap: 9px; font-weight: 800; font-size: 18px; }
+.app-logo { display: flex; align-items: center; gap: 9px; font-weight: 800; font-size: 18px; text-decoration: none; }
 .app-logo .mark {
   width: 28px; height: 28px; border-radius: 7px;
   background: linear-gradient(135deg, var(--color-primary), var(--color-primary-dark));
