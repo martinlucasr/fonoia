@@ -1,4 +1,5 @@
-const Anthropic = require("@anthropic-ai/sdk");
+const AnthropicModule = require("@anthropic-ai/sdk");
+const Anthropic = AnthropicModule.default || AnthropicModule;
 
 const SYSTEM_PROMPT = `Sos un asistente que ayuda a fonoaudiólogos independientes a redactar informes de evolución clínica en español, con tono profesional y clínico apropiado para uso en la práctica privada.
 
