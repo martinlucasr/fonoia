@@ -8,6 +8,18 @@ Reglas importantes:
 - Si falta un dato relevante para completar una sección, indicalo explícitamente (por ejemplo "no se cuenta con información registrada sobre...") en lugar de completarlo con supuestos.
 - Escribí en español, con redacción clínica clara y profesional, sin tecnicismos innecesarios ni relleno.`;
 
+function findBadChar(str, label) {
+  for (let i = 0; i < str.length; i++) {
+    const code = str.charCodeAt(i);
+    if (code > 255) {
+      console.log(`checkpoint: BAD CHAR in ${label} at index ${i}: code=${code} (${str.slice(Math.max(0, i - 5), i + 5)})`);
+      return true;
+    }
+  }
+  console.log(`checkpoint: ${label} is clean, length=${str.length}`);
+  return false;
+}
+
 exports.handler = async (event) => {
   try {
     console.log("checkpoint: handler start");
@@ -24,6 +36,11 @@ exports.handler = async (event) => {
     console.log("checkpoint: token extracted, length=", token.length);
 
     console.log("checkpoint: before supabase auth check, SUPABASE_URL set=", !!process.env.SUPABASE_URL, "SUPABASE_ANON_KEY set=", !!process.env.SUPABASE_ANON_KEY);
+    findBadChar(token, "token");
+    findBadChar(process.env.SUPABASE_URL || "", "SUPABASE_URL");
+    findBadChar(process.env.SUPABASE_ANON_KEY || "", "SUPABASE_ANON_KEY");
+    findBadChar(`Bearer ${token}`, "Authorization header value");
+
     const userResp = await fetch(`${process.env.SUPABASE_URL}/auth/v1/user`, {
       headers: {
         apikey: process.env.SUPABASE_ANON_KEY,
