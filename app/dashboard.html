@@ -30,7 +30,7 @@
     <button class="btn btn-primary" id="btn-open-modal">+ Agregar paciente</button>
   </div>
 
-  <div id="loading" class="loading-state">Cargando pacientes...</div>
+  <div id="loading" class="loading-state"><span class="spinner"></span>Cargando pacientes...</div>
   <div id="empty" class="empty-state" style="display:none">
     <p>Todavía no cargaste ningún paciente.</p>
   </div>
@@ -66,6 +66,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="../assets/supabase-config.js"></script>
 <script src="../assets/app-auth.js"></script>
+<script src="../assets/media-input.js"></script>
 <script>
   let currentUserId = null;
 
@@ -123,8 +124,10 @@
 
   document.getElementById("form-new-patient").addEventListener("submit", async (e) => {
     e.preventDefault();
+    const btn = e.submitter;
     const msg = document.getElementById("np-message");
-    msg.textContent = "Guardando...";
+    setLoading(btn, "Guardando...");
+    msg.textContent = "";
     msg.className = "form-message";
 
     const name = document.getElementById("np-name").value;
@@ -137,6 +140,8 @@
       birth_date,
       diagnosis,
     });
+
+    clearLoading(btn);
 
     if (error) {
       msg.textContent = error.message;

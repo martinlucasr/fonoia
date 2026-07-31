@@ -63,6 +63,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="../assets/supabase-config.js"></script>
 <script src="../assets/app-auth.js"></script>
+<script src="../assets/media-input.js"></script>
 <script>
   redirectIfLoggedIn();
 
@@ -90,8 +91,10 @@
 
   formLogin.addEventListener("submit", async (e) => {
     e.preventDefault();
+    const btn = e.submitter;
     const msg = document.getElementById("login-message");
-    msg.textContent = "Ingresando...";
+    setLoading(btn, "Ingresando...");
+    msg.textContent = "";
     msg.className = "form-message";
 
     const email = document.getElementById("login-email").value;
@@ -99,6 +102,7 @@
 
     const { error } = await sb.auth.signInWithPassword({ email, password });
     if (error) {
+      clearLoading(btn);
       msg.textContent = error.message === "Invalid login credentials"
         ? "Email o contraseña incorrectos."
         : error.message;
@@ -110,8 +114,10 @@
 
   formSignup.addEventListener("submit", async (e) => {
     e.preventDefault();
+    const btn = e.submitter;
     const msg = document.getElementById("signup-message");
-    msg.textContent = "Creando cuenta...";
+    setLoading(btn, "Creando cuenta...");
+    msg.textContent = "";
     msg.className = "form-message";
 
     const name = document.getElementById("signup-name").value;
@@ -125,6 +131,7 @@
     });
 
     if (error) {
+      clearLoading(btn);
       msg.textContent = error.message;
       msg.classList.add("error");
       return;
@@ -133,6 +140,7 @@
     if (data.session) {
       window.location.href = "dashboard.html";
     } else {
+      clearLoading(btn);
       msg.textContent = "¡Listo! Revisá tu email para confirmar la cuenta antes de ingresar.";
       msg.classList.add("success");
     }

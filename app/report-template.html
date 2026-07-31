@@ -24,7 +24,7 @@
 </header>
 
 <main class="app-main">
-  <div id="loading" class="loading-state">Cargando...</div>
+  <div id="loading" class="loading-state"><span class="spinner"></span>Cargando...</div>
 
   <div id="content" style="display:none">
     <a href="dashboard.html" class="back">← Volver a mis pacientes</a>
@@ -109,10 +109,10 @@
     document.getElementById("template-text").value = (data && data.template_text) || "";
   }
 
-  document.getElementById("btn-save-template").addEventListener("click", async () => {
+  document.getElementById("btn-save-template").addEventListener("click", async (e) => {
+    const btn = e.currentTarget;
     const msg = document.getElementById("template-message");
-    msg.textContent = "Guardando...";
-    msg.className = "form-message";
+    setLoading(btn, "Guardando...");
 
     const text = document.getElementById("template-text").value.trim();
 
@@ -122,14 +122,15 @@
       updated_at: new Date().toISOString(),
     });
 
+    clearLoading(btn);
     msg.textContent = error ? error.message : "Plantilla guardada.";
     msg.className = error ? "form-message error" : "form-message success";
   });
 
-  document.getElementById("btn-remove-template").addEventListener("click", async () => {
+  document.getElementById("btn-remove-template").addEventListener("click", async (e) => {
+    const btn = e.currentTarget;
     const msg = document.getElementById("template-message");
-    msg.textContent = "Quitando...";
-    msg.className = "form-message";
+    setLoading(btn, "Quitando...");
 
     document.getElementById("template-text").value = "";
 
@@ -139,6 +140,7 @@
       updated_at: new Date().toISOString(),
     });
 
+    clearLoading(btn);
     msg.textContent = error ? error.message : "Listo, se va a usar la estructura predeterminada.";
     msg.className = error ? "form-message error" : "form-message success";
   });

@@ -24,7 +24,7 @@
 </header>
 
 <main class="app-main">
-  <div id="loading" class="loading-state">Cargando paciente...</div>
+  <div id="loading" class="loading-state"><span class="spinner"></span>Cargando paciente...</div>
 
   <div id="content" style="display:none">
     <a href="dashboard.html" class="back">← Volver a mis pacientes</a>
@@ -80,6 +80,19 @@
         </div>
       </div>
 
+      <!-- ÍNDICE DEL INFORME (arrastrable) -->
+      <div class="card">
+        <p class="section-title">Índice del informe</p>
+        <p class="card-hint">Este es el orden de secciones que va a seguir la IA para armar el informe — no aparece tal cual en el documento final, es solo tu guía de organización. Arrastrá para reordenar, quitá lo que no quieras, o agregá tus propias secciones.</p>
+        <ul id="section-order-list" class="section-order-list"></ul>
+        <div class="section-order-add">
+          <input type="text" id="new-section-input" placeholder="Agregar sección (ej: Antecedentes familiares)" />
+          <button type="button" class="btn btn-secondary" id="btn-add-section">+ Agregar</button>
+        </div>
+        <button type="button" class="btn btn-secondary" id="btn-save-section-order" style="margin-top:12px">Guardar orden</button>
+        <p class="form-message" id="section-order-message"></p>
+      </div>
+
       <!-- CONSIDERACIONES + GENERAR INFORME -->
       <div class="card">
         <p class="section-title">Consideraciones para el informe</p>
@@ -111,19 +124,22 @@
       <!-- ACLARACIONES ANTES DE GENERAR -->
       <div class="card card-featured" id="clarification-card" style="display:none">
         <p class="section-title">Antes de generar el informe...</p>
-        <p class="card-hint">La IA encontró algunos puntos que conviene aclarar. Elegí una opción o escribí la tuya en "Otro".</p>
+        <p class="card-hint">La IA encontró algunos puntos que conviene aclarar. Elegí una opción, escribí la tuya en "Otro", u omití si no aplica.</p>
+        <p class="clarify-progress" id="clarification-progress"></p>
         <div id="clarification-questions"></div>
-        <button type="button" class="btn btn-primary" id="btn-submit-clarifications" style="margin-top:12px">Continuar y generar informe</button>
+        <p class="clarify-required-note" id="clarification-required-note"></p>
+        <div class="clarify-nav">
+          <button type="button" class="btn btn-secondary" id="btn-clarify-prev">Anterior</button>
+          <button type="button" class="btn btn-primary" id="btn-clarify-next">Siguiente</button>
+        </div>
       </div>
 
       <!-- INFORME GENERADO -->
       <div class="card" id="report-result-card" style="display:none">
         <p class="section-title">Informe de evolución generado</p>
-        <p class="card-hint">Revisá y ajustá el texto antes de guardarlo o exportarlo — es un borrador generado por IA.</p>
-        <div class="field">
-          <textarea id="report-result-text" rows="14"></textarea>
-        </div>
-        <div class="report-actions">
+        <p class="card-hint">Revisá y ajustá el texto antes de guardarlo o exportarlo — es un borrador generado por IA. Podés editar directamente sobre la vista previa.</p>
+        <div id="report-result-text" class="report-preview-page" contenteditable="true"></div>
+        <div class="report-actions" style="margin-top:16px">
           <button type="button" class="btn btn-secondary" id="btn-copy-report">Copiar</button>
           <button type="button" class="btn btn-secondary" id="btn-download-report">Descargar (.txt)</button>
           <button type="button" class="btn btn-primary" id="btn-save-report">Guardar informe</button>
@@ -172,6 +188,20 @@
   let currentRangeMonths = "6";
   let totalNotesCount = 0;
 
+  const DEFAULT_SECTIONS = [
+    "Encabezado (lugar y fecha)",
+    "Datos del paciente",
+    "Motivo de consulta / diagnóstico",
+    "Antecedentes personales",
+    "Presentación",
+    "Evaluación",
+    "Evolución",
+    "En suma (conclusión general)",
+    "Sugerencias",
+    "Firma del profesional",
+  ];
+  let sectionOrder = DEFAULT_SECTIONS.slice();
+
   (async () => {
     if (!patientId) {
       window.location.href = "dashboard.html";
@@ -200,6 +230,7 @@
       document.getElementById("file-input-considerations"),
       document.getElementById("considerations-text")
     );
+    setupSectionOrderDragAndDrop();
 
     await loadPatient();
     await loadNotes();
@@ -234,20 +265,33 @@
       openHistoryModal();
     }
 
+    const { data: templateRow } = await sb
+      .from("report_templates")
+      .select("section_order")
+      .eq("user_id", currentUserId)
+      .maybeSingle();
+    if (templateRow && Array.isArray(templateRow.section_order) && templateRow.section_order.length) {
+      sectionOrder = templateRow.section_order.slice();
+    }
+    renderSectionOrderList();
+
     document.getElementById("loading").style.display = "none";
     document.getElementById("content").style.display = "block";
   }
 
   document.getElementById("form-history").addEventListener("submit", async (e) => {
     e.preventDefault();
+    const btn = e.submitter;
     const msg = document.getElementById("history-message");
-    msg.textContent = "Guardando...";
+    setLoading(btn, "Guardando...");
+    msg.textContent = "";
     msg.className = "form-message";
 
     const diagnosis = document.getElementById("hist-diagnosis").value || null;
     const history = document.getElementById("hist-text").value || null;
 
     const { error } = await sb.from("patients").update({ diagnosis, history }).eq("id", patientId);
+    clearLoading(btn);
 
     if (error) {
       msg.textContent = error.message;
@@ -255,21 +299,98 @@
       return;
     }
 
-    msg.textContent = "";
     closeHistoryModal();
   });
 
   document.getElementById("form-considerations").addEventListener("submit", async (e) => {
     e.preventDefault();
+    const btn = e.submitter;
     const msg = document.getElementById("considerations-message");
-    msg.textContent = "Guardando...";
-    msg.className = "form-message";
+    setLoading(btn, "Guardando...");
 
     const { error } = await sb.from("patients")
       .update({ report_considerations: document.getElementById("considerations-text").value || null })
       .eq("id", patientId);
 
+    clearLoading(btn);
     msg.textContent = error ? error.message : "Guardado.";
+    msg.className = error ? "form-message error" : "form-message success";
+  });
+
+  // ---------- Índice del informe (arrastrable) ----------
+  function renderSectionOrderList() {
+    const list = document.getElementById("section-order-list");
+    list.innerHTML = "";
+    sectionOrder.forEach((label, index) => {
+      const li = document.createElement("li");
+      li.className = "section-order-item";
+      li.draggable = true;
+      li.dataset.index = String(index);
+      li.innerHTML = `<span class="drag-handle">⠿</span><span class="section-label">${escapeHtml(label)}</span><button type="button" class="btn-remove-section" title="Quitar">×</button>`;
+      list.appendChild(li);
+    });
+  }
+
+  function setupSectionOrderDragAndDrop() {
+    const list = document.getElementById("section-order-list");
+    let dragIndex = null;
+
+    list.addEventListener("dragstart", (e) => {
+      const li = e.target.closest(".section-order-item");
+      if (!li) return;
+      dragIndex = Number(li.dataset.index);
+      li.classList.add("dragging");
+    });
+
+    list.addEventListener("dragend", (e) => {
+      const li = e.target.closest(".section-order-item");
+      if (li) li.classList.remove("dragging");
+      dragIndex = null;
+    });
+
+    list.addEventListener("dragover", (e) => {
+      e.preventDefault();
+      const li = e.target.closest(".section-order-item");
+      if (!li || dragIndex === null) return;
+      const overIndex = Number(li.dataset.index);
+      if (overIndex === dragIndex) return;
+      const item = sectionOrder.splice(dragIndex, 1)[0];
+      sectionOrder.splice(overIndex, 0, item);
+      dragIndex = overIndex;
+      renderSectionOrderList();
+    });
+
+    list.addEventListener("click", (e) => {
+      const removeBtn = e.target.closest(".btn-remove-section");
+      if (!removeBtn) return;
+      const li = removeBtn.closest(".section-order-item");
+      sectionOrder.splice(Number(li.dataset.index), 1);
+      renderSectionOrderList();
+    });
+  }
+
+  document.getElementById("btn-add-section").addEventListener("click", () => {
+    const input = document.getElementById("new-section-input");
+    const value = input.value.trim();
+    if (!value) return;
+    sectionOrder.push(value);
+    input.value = "";
+    renderSectionOrderList();
+  });
+
+  document.getElementById("btn-save-section-order").addEventListener("click", async (e) => {
+    const btn = e.currentTarget;
+    const msg = document.getElementById("section-order-message");
+    setLoading(btn, "Guardando...");
+
+    const { error } = await sb.from("report_templates").upsert({
+      user_id: currentUserId,
+      section_order: sectionOrder,
+      updated_at: new Date().toISOString(),
+    });
+
+    clearLoading(btn);
+    msg.textContent = error ? error.message : "Orden guardado.";
     msg.className = error ? "form-message error" : "form-message success";
   });
 
@@ -357,7 +478,10 @@
     `;
 
     item.querySelector(".btn-cancel-edit").addEventListener("click", () => loadNotes());
-    item.querySelector(".btn-save-edit").addEventListener("click", async () => {
+    item.querySelector(".btn-save-edit").addEventListener("click", async (e) => {
+      const saveBtn = e.currentTarget;
+      setLoading(saveBtn, "Guardando...");
+
       const newDate = item.querySelector(".edit-date").value;
       const newContent = item.querySelector(".edit-content").value;
 
@@ -367,6 +491,7 @@
       }).eq("id", id);
 
       if (error) {
+        clearLoading(saveBtn);
         alert("No se pudo guardar: " + error.message);
         return;
       }
@@ -376,9 +501,9 @@
 
   document.getElementById("form-note").addEventListener("submit", async (e) => {
     e.preventDefault();
+    const btn = e.submitter;
     const msg = document.getElementById("note-message");
-    msg.textContent = "Guardando...";
-    msg.className = "form-message";
+    setLoading(btn, "Guardando...");
 
     const { error } = await sb.from("session_notes").insert({
       patient_id: patientId,
@@ -386,6 +511,8 @@
       session_date: document.getElementById("note-date").value,
       content: document.getElementById("note-content").value,
     });
+
+    clearLoading(btn);
 
     if (error) {
       msg.textContent = error.message;
@@ -421,6 +548,7 @@
       considerations: document.getElementById("considerations-text").value,
       notes: allNotes || [],
       customTemplate: (templateRow && templateRow.template_text) || null,
+      sectionOrder: sectionOrder,
       reportType: document.getElementById("report-type").value,
     };
   }
@@ -443,9 +571,42 @@
     return result;
   }
 
+  // Convierte el texto plano del informe en una vista previa con la primera línea
+  // (lugar y fecha) alineada a la derecha, el título centrado en negrita, y los
+  // títulos de sección (líneas en MAYÚSCULAS) en negrita.
+  function renderReportPreview(text) {
+    const lines = text.split(/\r?\n/);
+    let html = "";
+    let firstLineDone = false;
+
+    lines.forEach((line) => {
+      const trimmed = line.trim();
+      if (!trimmed) return;
+
+      if (!firstLineDone) {
+        html += `<p class="doc-dateline">${escapeHtml(trimmed)}</p>`;
+        firstLineDone = true;
+        return;
+      }
+
+      const isAllCaps = trimmed.length < 70 && trimmed === trimmed.toUpperCase() && /[A-ZÁÉÍÓÚÑ]/.test(trimmed);
+      const isTitle = /informe de evoluci[oó]n/i.test(trimmed) && trimmed === trimmed.toUpperCase();
+
+      if (isTitle) {
+        html += `<p class="doc-title">${escapeHtml(trimmed)}</p>`;
+      } else if (isAllCaps) {
+        html += `<strong>${escapeHtml(trimmed)}</strong>`;
+      } else {
+        html += `<p>${escapeHtml(trimmed)}</p>`;
+      }
+    });
+
+    return html;
+  }
+
   async function finalizeReport(basePayload, clarifications) {
     const result = await callGenerateReport({ ...basePayload, step: "generate", clarifications });
-    document.getElementById("report-result-text").value = result.report;
+    document.getElementById("report-result-text").innerHTML = renderReportPreview(result.report);
     const resultCard = document.getElementById("report-result-card");
     resultCard.style.display = "block";
     resultCard.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -454,17 +615,24 @@
   function renderClarificationQuestions(questions, basePayload) {
     const card = document.getElementById("clarification-card");
     const container = document.getElementById("clarification-questions");
-    container.innerHTML = "";
+    const progressEl = document.getElementById("clarification-progress");
+    const requiredNote = document.getElementById("clarification-required-note");
+    const prevBtn = document.getElementById("btn-clarify-prev");
+    const nextBtn = document.getElementById("btn-clarify-next");
 
-    questions.forEach((q) => {
-      const block = document.createElement("div");
-      block.className = "clarify-question";
-      block.dataset.questionText = q.question;
+    let currentIndex = 0;
+    const answers = new Array(questions.length).fill(undefined);
+
+    function renderCurrent() {
+      const q = questions[currentIndex];
+      progressEl.textContent = `Pregunta ${currentIndex + 1} de ${questions.length}`;
+      requiredNote.textContent = "";
+      container.innerHTML = "";
 
       const title = document.createElement("p");
       title.className = "clarify-question-text";
       title.textContent = q.question;
-      block.appendChild(title);
+      container.appendChild(title);
 
       const optionsWrap = document.createElement("div");
       optionsWrap.className = "clarify-options";
@@ -475,16 +643,20 @@
       otherInput.placeholder = "Escribí tu respuesta";
       otherInput.style.display = "none";
 
+      const existing = answers[currentIndex];
+
       (q.options || []).forEach((opt) => {
         const chip = document.createElement("button");
         chip.type = "button";
         chip.className = "clarify-chip";
         chip.textContent = opt;
+        if (existing === opt) chip.classList.add("selected");
         chip.addEventListener("click", () => {
           optionsWrap.querySelectorAll(".clarify-chip").forEach((c) => c.classList.remove("selected"));
           chip.classList.add("selected");
-          block.dataset.answer = opt;
+          answers[currentIndex] = opt;
           otherInput.style.display = "none";
+          requiredNote.textContent = "";
         });
         optionsWrap.appendChild(chip);
       });
@@ -501,45 +673,82 @@
       });
       optionsWrap.appendChild(otherChip);
 
+      if (!q.required) {
+        const skipChip = document.createElement("button");
+        skipChip.type = "button";
+        skipChip.className = "clarify-chip clarify-chip-skip";
+        skipChip.textContent = "Omitir";
+        skipChip.addEventListener("click", () => {
+          optionsWrap.querySelectorAll(".clarify-chip").forEach((c) => c.classList.remove("selected"));
+          skipChip.classList.add("selected");
+          answers[currentIndex] = null;
+          otherInput.style.display = "none";
+          requiredNote.textContent = "";
+        });
+        if (existing === null) skipChip.classList.add("selected");
+        optionsWrap.appendChild(skipChip);
+      }
+
       otherInput.addEventListener("input", () => {
-        block.dataset.answer = otherInput.value;
+        answers[currentIndex] = otherInput.value;
       });
+      if (existing && typeof existing === "string" && !q.options.includes(existing)) {
+        otherInput.style.display = "block";
+        otherInput.value = existing;
+        otherChip.classList.add("selected");
+      }
 
-      block.appendChild(optionsWrap);
-      block.appendChild(otherInput);
-      container.appendChild(block);
-    });
+      container.appendChild(optionsWrap);
+      container.appendChild(otherInput);
 
-    card.style.display = "block";
-    card.scrollIntoView({ behavior: "smooth", block: "start" });
+      prevBtn.disabled = currentIndex === 0;
+      nextBtn.textContent = currentIndex === questions.length - 1 ? "Generar informe" : "Siguiente";
+    }
 
-    document.getElementById("btn-submit-clarifications").onclick = async () => {
-      const submitBtn = document.getElementById("btn-submit-clarifications");
-      submitBtn.disabled = true;
-      submitBtn.textContent = "Generando informe...";
+    prevBtn.onclick = () => {
+      if (currentIndex > 0) {
+        currentIndex--;
+        renderCurrent();
+      }
+    };
 
+    nextBtn.onclick = async () => {
+      const q = questions[currentIndex];
+      if (q.required && !answers[currentIndex]) {
+        requiredNote.textContent = "Esta pregunta es obligatoria para generar el informe.";
+        return;
+      }
+
+      if (currentIndex < questions.length - 1) {
+        currentIndex++;
+        renderCurrent();
+        return;
+      }
+
+      setLoading(nextBtn, "Generando informe...");
+      prevBtn.disabled = true;
       try {
-        const clarifications = Array.from(container.querySelectorAll(".clarify-question")).map((block) => ({
-          question: block.dataset.questionText,
-          answer: block.dataset.answer || "No especificado",
+        const clarifications = questions.map((qq, i) => ({
+          question: qq.question,
+          answer: answers[i] === null ? "Omitido" : (answers[i] || "No especificado"),
         }));
-
         await finalizeReport(basePayload, clarifications);
         card.style.display = "none";
       } catch (err) {
         alert("No se pudo generar el informe: " + err.message);
-      } finally {
-        submitBtn.disabled = false;
-        submitBtn.textContent = "Continuar y generar informe";
+        clearLoading(nextBtn, "Generar informe");
+        prevBtn.disabled = false;
       }
     };
+
+    card.style.display = "block";
+    card.scrollIntoView({ behavior: "smooth", block: "start" });
+    renderCurrent();
   }
 
   document.getElementById("btn-generate-report").addEventListener("click", async () => {
     const btn = document.getElementById("btn-generate-report");
-    const originalLabel = btn.textContent;
-    btn.disabled = true;
-    btn.textContent = "Analizando información...";
+    setLoading(btn, "Analizando información...");
     document.getElementById("clarification-card").style.display = "none";
 
     try {
@@ -547,29 +756,29 @@
       const askResult = await callGenerateReport({ ...basePayload, step: "ask" });
 
       if (askResult.needs_clarification && askResult.questions && askResult.questions.length) {
+        clearLoading(btn);
         renderClarificationQuestions(askResult.questions, basePayload);
         return;
       }
 
-      btn.textContent = "Generando informe...";
+      setLoading(btn, "Generando informe...");
       await finalizeReport(basePayload, []);
+      clearLoading(btn);
     } catch (err) {
       alert("No se pudo generar el informe: " + err.message);
-    } finally {
-      btn.disabled = false;
-      btn.textContent = originalLabel;
+      clearLoading(btn);
     }
   });
 
   document.getElementById("btn-copy-report").addEventListener("click", async () => {
-    await navigator.clipboard.writeText(document.getElementById("report-result-text").value);
+    await navigator.clipboard.writeText(document.getElementById("report-result-text").innerText);
     const msg = document.getElementById("report-message");
     msg.textContent = "Copiado al portapapeles.";
     msg.className = "form-message success";
   });
 
   document.getElementById("btn-download-report").addEventListener("click", () => {
-    const text = document.getElementById("report-result-text").value;
+    const text = document.getElementById("report-result-text").innerText;
     const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -579,17 +788,18 @@
     URL.revokeObjectURL(url);
   });
 
-  document.getElementById("btn-save-report").addEventListener("click", async () => {
+  document.getElementById("btn-save-report").addEventListener("click", async (e) => {
+    const btn = e.currentTarget;
     const msg = document.getElementById("report-message");
-    msg.textContent = "Guardando...";
-    msg.className = "form-message";
+    setLoading(btn, "Guardando...");
 
     const { error } = await sb.from("reports").insert({
       patient_id: patientId,
       user_id: currentUserId,
-      content: document.getElementById("report-result-text").value,
+      content: document.getElementById("report-result-text").innerText,
     });
 
+    clearLoading(btn);
     msg.textContent = error ? error.message : "Informe guardado.";
     msg.className = error ? "form-message error" : "form-message success";
   });

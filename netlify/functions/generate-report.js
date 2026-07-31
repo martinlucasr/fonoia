@@ -8,6 +8,19 @@ Reglas importantes:
 - Si falta un dato relevante para completar una sección, indicalo explícitamente (por ejemplo "no se cuenta con información registrada sobre...") en lugar de completarlo con supuestos.
 - Escribí en español, con redacción clínica clara y profesional, sin tecnicismos innecesarios ni relleno.`;
 
+const DEFAULT_SECTIONS = [
+  "Encabezado (lugar y fecha)",
+  "Datos del paciente",
+  "Motivo de consulta / diagnóstico",
+  "Antecedentes personales",
+  "Presentación",
+  "Evaluación",
+  "Evolución",
+  "En suma (conclusión general)",
+  "Sugerencias",
+  "Firma del profesional",
+];
+
 const DEFAULT_STRUCTURE = `Estructurá el informe con estas secciones, en este orden (formato estándar de informe de evolución fonoaudiológico):
 
 1. Encabezado: lugar y fecha, y título "INFORME DE EVOLUCIÓN FONOAUDIOLÓGICO"
@@ -21,6 +34,11 @@ const DEFAULT_STRUCTURE = `Estructurá el informe con estas secciones, en este o
 9. SUGERENCIAS: recomendaciones para la familia, escuela u otros profesionales; indicar continuidad del tratamiento o derivación si corresponde
 10. Firma del profesional`;
 
+const FORMAT_CONVENTION = `Convenciones de formato del texto (importante, se usa para previsualizar el informe como un documento):
+- La primera línea del informe tiene que ser el lugar y la fecha (por ejemplo "Montevideo, 15 de julio de 2026."), sin nada antes.
+- Los títulos de cada sección van solos en su propia línea, en MAYÚSCULAS (por ejemplo "ANTECEDENTES PERSONALES"), seguidos del contenido de esa sección en el/los párrafo/s siguientes.
+- No uses markdown, asteriscos ni numeración para los títulos de sección.`;
+
 const QUESTIONS_SCHEMA = {
   type: "object",
   properties: {
@@ -33,8 +51,9 @@ const QUESTIONS_SCHEMA = {
           id: { type: "string" },
           question: { type: "string" },
           options: { type: "array", items: { type: "string" } },
+          required: { type: "boolean" },
         },
-        required: ["id", "question", "options"],
+        required: ["id", "question", "options", "required"],
         additionalProperties: false,
       },
     },
@@ -91,6 +110,7 @@ exports.handler = async (event) => {
       considerations,
       notes,
       customTemplate,
+      sectionOrder,
       reportType,
       step,
       clarifications,
@@ -116,7 +136,7 @@ exports.handler = async (event) => {
 
 ${dataSummary}
 
-Antes de redactar el informe, evaluá si falta información relevante o si algo es ambiguo de una forma que afecte la calidad del informe. Si es así, generá como máximo 4 preguntas breves y concretas para el profesional, cada una con 2 a 4 opciones de respuesta plausibles y breves. El profesional también va a poder escribir una respuesta distinta a las opciones, así que no hace falta cubrir todos los casos posibles. Si la información disponible ya es suficiente y clara, indicá que no hace falta preguntar nada.`;
+Antes de redactar el informe, evaluá si falta información relevante o si algo es ambiguo de una forma que afecte la calidad del informe. Si es así, generá como máximo 4 preguntas breves y concretas para el profesional, cada una con 2 a 4 opciones de respuesta plausibles y breves. Marcá cada pregunta como "required": true solo si es realmente indispensable para poder redactar el informe (esto debería ser poco frecuente); el resto marcalas "required": false, ya que el profesional va a poder omitirlas o escribir una respuesta propia en vez de elegir una opción. Si la información disponible ya es suficiente y clara, indicá que no hace falta preguntar nada.`;
 
       const askMessage = await client.messages.create({
         model: "claude-sonnet-5",
@@ -133,13 +153,19 @@ Antes de redactar el informe, evaluá si falta información relevante o si algo 
     }
 
     // ---------- Paso 2: generar el informe ----------
-    const structureInstructions = customTemplate
-      ? `Usá como estructura y formato del informe la siguiente plantilla provista por el profesional. Respetá sus secciones, encabezados y organización, adaptando el contenido de este paciente a esa estructura en vez de usar un formato genérico:
+    let structureInstructions;
+    if (customTemplate) {
+      structureInstructions = `Usá como estructura y formato del informe la siguiente plantilla provista por el profesional. Respetá sus secciones, encabezados y organización, adaptando el contenido de este paciente a esa estructura en vez de usar un formato genérico:
 
 --- PLANTILLA DEL PROFESIONAL ---
 ${customTemplate}
---- FIN DE LA PLANTILLA ---`
-      : DEFAULT_STRUCTURE;
+--- FIN DE LA PLANTILLA ---`;
+    } else if (sectionOrder && sectionOrder.length) {
+      structureInstructions = `Estructurá el informe siguiendo este índice de secciones, en este orden (el índice es solo una guía de organización interna para vos — no debe aparecer como lista ni mencionarse como "índice" en el informe final):
+${sectionOrder.map((s, i) => `${i + 1}. ${s}`).join("\n")}`;
+    } else {
+      structureInstructions = DEFAULT_STRUCTURE;
+    }
 
     const clarificationsText = (clarifications || [])
       .map((c) => `- ${c.question} → ${c.answer}`)
@@ -152,7 +178,9 @@ ${dataSummary}
 Respuestas del profesional a preguntas de aclaración:
 ${clarificationsText || "Ninguna."}
 
-${structureInstructions}`;
+${structureInstructions}
+
+${FORMAT_CONVENTION}`;
 
     const message = await client.messages.create({
       model: "claude-sonnet-5",

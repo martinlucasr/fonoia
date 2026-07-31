@@ -1,5 +1,19 @@
 // Requiere que sb (cliente de Supabase) ya esté inicializado por app-auth.js
 
+// Pone un botón en estado "cargando": ícono girando + texto + deshabilitado.
+function setLoading(btn, text) {
+  if (btn.dataset.originalLabel === undefined) btn.dataset.originalLabel = btn.textContent;
+  btn.disabled = true;
+  btn.innerHTML = `<span class="spinner"></span>${text}`;
+}
+
+// Restaura un botón a su estado normal. Si no se pasa texto, usa el original guardado.
+function clearLoading(btn, text) {
+  btn.disabled = false;
+  btn.textContent = text !== undefined ? text : (btn.dataset.originalLabel || btn.textContent);
+  delete btn.dataset.originalLabel;
+}
+
 function setupVoiceButton(button, textarea) {
   const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (!SpeechRecognition) {
@@ -63,9 +77,7 @@ function setupFileImportButton(button, fileInput, textarea) {
     const file = fileInput.files[0];
     if (!file) return;
 
-    const originalLabel = button.textContent;
-    button.disabled = true;
-    button.textContent = "Procesando...";
+    setLoading(button, "Procesando documento...");
 
     try {
       const base64 = await fileToBase64(file);
@@ -89,8 +101,7 @@ function setupFileImportButton(button, fileInput, textarea) {
     } catch (err) {
       alert("No se pudo procesar el documento: " + err.message);
     } finally {
-      button.textContent = originalLabel;
-      button.disabled = false;
+      clearLoading(button);
       fileInput.value = "";
     }
   });
