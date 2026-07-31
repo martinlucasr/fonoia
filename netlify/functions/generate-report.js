@@ -8,13 +8,18 @@ Reglas importantes:
 - Si falta un dato relevante para completar una sección, indicalo explícitamente (por ejemplo "no se cuenta con información registrada sobre...") en lugar de completarlo con supuestos.
 - Escribí en español, con redacción clínica clara y profesional, sin tecnicismos innecesarios ni relleno.`;
 
-const DEFAULT_STRUCTURE = `Estructurá el informe con estas secciones, en este orden:
-1. Encabezado (paciente y fecha)
-2. Motivo de consulta / diagnóstico
-3. Antecedentes relevantes
-4. Resumen de la evolución, a partir de las notas de sesión
-5. Consideraciones adicionales del profesional (si las hay)
-6. Conclusión y recomendaciones`;
+const DEFAULT_STRUCTURE = `Estructurá el informe con estas secciones, en este orden (formato estándar de informe de evolución fonoaudiológico):
+
+1. Encabezado: lugar y fecha, y título "INFORME DE EVOLUCIÓN FONOAUDIOLÓGICO"
+2. Datos del paciente: nombre, fecha de nacimiento, edad cronológica, escolarización (si corresponde)
+3. Motivo de consulta / derivado por
+4. ANTECEDENTES PERSONALES: antecedentes prenatales, perinatales y postnatales relevantes; hitos del desarrollo (lenguaje, motricidad, alimentación, audición); antecedentes familiares o médicos relevantes — según lo que surja de la historia clínica
+5. PRESENTACIÓN: descripción breve del paciente (actitud, disposición, colaboración, interés en la tarea, rasgos comunicativos generales) — según lo que surja de las notas de sesión
+6. EVALUACIÓN: áreas evaluadas (lenguaje, habla, voz, audición, deglución, según corresponda), instrumentos o pruebas utilizadas, resultados relevantes
+7. EVOLUCIÓN: progreso a lo largo de las sesiones — respuesta al tratamiento, avances, dificultades persistentes, objetivos cumplidos y objetivos a continuar trabajando
+8. EN SUMA: conclusión general sobre el estado actual del paciente, comparando con el inicio del proceso
+9. SUGERENCIAS: recomendaciones para la familia, escuela u otros profesionales; indicar continuidad del tratamiento o derivación si corresponde
+10. Firma del profesional`;
 
 exports.handler = async (event) => {
   try {
