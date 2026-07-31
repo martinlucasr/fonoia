@@ -1,5 +1,5 @@
 {
-  "name": "fonoia-functions",
+  "name": "fonoia",
   "private": true,
   "dependencies": {
     "mammoth": "^1.7.0",
