@@ -8,22 +8,16 @@ Reglas importantes:
 - Si falta un dato relevante para completar una sección, indicalo explícitamente (por ejemplo "no se cuenta con información registrada sobre...") en lugar de completarlo con supuestos.
 - Escribí en español, con redacción clínica clara y profesional, sin tecnicismos innecesarios ni relleno.`;
 
-function findBadChar(str, label) {
-  for (let i = 0; i < str.length; i++) {
-    const code = str.charCodeAt(i);
-    if (code > 255) {
-      console.log(`checkpoint: BAD CHAR in ${label} at index ${i}: code=${code} (${str.slice(Math.max(0, i - 5), i + 5)})`);
-      return true;
-    }
-  }
-  console.log(`checkpoint: ${label} is clean, length=${str.length}`);
-  return false;
-}
+const DEFAULT_STRUCTURE = `Estructurá el informe con estas secciones, en este orden:
+1. Encabezado (paciente y fecha)
+2. Motivo de consulta / diagnóstico
+3. Antecedentes relevantes
+4. Resumen de la evolución, a partir de las notas de sesión
+5. Consideraciones adicionales del profesional (si las hay)
+6. Conclusión y recomendaciones`;
 
 exports.handler = async (event) => {
   try {
-    console.log("checkpoint: handler start");
-
     if (event.httpMethod !== "POST") {
       return { statusCode: 405, body: JSON.stringify({ error: "Método no permitido" }) };
     }
@@ -33,13 +27,6 @@ exports.handler = async (event) => {
       return { statusCode: 401, body: JSON.stringify({ error: "No autorizado" }) };
     }
     const token = authHeader.replace("Bearer ", "");
-    console.log("checkpoint: token extracted, length=", token.length);
-
-    console.log("checkpoint: before supabase auth check, SUPABASE_URL set=", !!process.env.SUPABASE_URL, "SUPABASE_ANON_KEY set=", !!process.env.SUPABASE_ANON_KEY);
-    findBadChar(token, "token");
-    findBadChar(process.env.SUPABASE_URL || "", "SUPABASE_URL");
-    findBadChar(process.env.SUPABASE_ANON_KEY || "", "SUPABASE_ANON_KEY");
-    findBadChar(`Bearer ${token}`, "Authorization header value");
 
     const userResp = await fetch(`${process.env.SUPABASE_URL}/auth/v1/user`, {
       headers: {
@@ -47,7 +34,6 @@ exports.handler = async (event) => {
         Authorization: `Bearer ${token}`,
       },
     });
-    console.log("checkpoint: supabase auth check responded, status=", userResp.status);
     if (!userResp.ok) {
       return { statusCode: 401, body: JSON.stringify({ error: "Sesión inválida" }) };
     }
@@ -59,12 +45,19 @@ exports.handler = async (event) => {
       return { statusCode: 400, body: JSON.stringify({ error: "Solicitud inválida" }) };
     }
 
-    const { patientName, diagnosis, history, considerations, notes } = payload;
-    console.log("checkpoint: payload parsed, notesCount=", (notes || []).length);
+    const { patientName, diagnosis, history, considerations, notes, customTemplate } = payload;
 
     const notesText = (notes || [])
       .map((n) => `Sesión del ${n.session_date}: ${n.content}`)
       .join("\n\n");
+
+    const structureInstructions = customTemplate
+      ? `Usá como estructura y formato del informe la siguiente plantilla provista por el profesional. Respetá sus secciones, encabezados y organización, adaptando el contenido de este paciente a esa estructura en vez de usar un formato genérico:
+
+--- PLANTILLA DEL PROFESIONAL ---
+${customTemplate}
+--- FIN DE LA PLANTILLA ---`
+      : DEFAULT_STRUCTURE;
 
     const userPrompt = `Redactá un informe de evolución fonoaudiológica a partir de estos datos.
 
@@ -78,11 +71,9 @@ ${notesText || "Sin notas registradas."}
 Consideraciones adicionales del profesional:
 ${considerations || "Ninguna."}
 
-Estructurá el informe con: encabezado (paciente y fecha), motivo de consulta, resumen de la evolución a partir de las notas de sesión, y conclusión con recomendaciones.`;
+${structureInstructions}`;
 
-    console.log("checkpoint: ANTHROPIC_API_KEY set=", !!process.env.ANTHROPIC_API_KEY, "length=", (process.env.ANTHROPIC_API_KEY || "").length);
     const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-    console.log("checkpoint: anthropic client constructed");
 
     const message = await client.messages.create({
       model: "claude-sonnet-5",
@@ -90,7 +81,6 @@ Estructurá el informe con: encabezado (paciente y fecha), motivo de consulta, r
       system: SYSTEM_PROMPT,
       messages: [{ role: "user", content: userPrompt }],
     });
-    console.log("checkpoint: anthropic call succeeded");
 
     const textBlock = message.content.find((b) => b.type === "text");
 
@@ -99,8 +89,6 @@ Estructurá el informe con: encabezado (paciente y fecha), motivo de consulta, r
       body: JSON.stringify({ report: textBlock ? textBlock.text : "" }),
     };
   } catch (err) {
-    console.error("checkpoint: caught error ->", err.message);
-    console.error(err.stack);
     return {
       statusCode: 502,
       body: JSON.stringify({ error: "Error al generar el informe: " + err.message }),

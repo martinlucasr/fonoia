@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Formato de informe — FonoIA</title>
+<link rel="stylesheet" href="../assets/app.css" />
+</head>
+<body>
+
+<header class="app-header">
+  <div class="app-header-inner">
+    <a href="dashboard.html" class="app-logo">
+      <span class="mark">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+      </span>
+      FonoIA
+    </a>
+    <div class="app-user">
+      <span id="user-email"></span>
+      <button class="btn btn-secondary" id="btn-logout">Cerrar sesión</button>
+    </div>
+  </div>
+</header>
+
+<main class="app-main">
+  <div id="loading" class="loading-state">Cargando...</div>
+
+  <div id="content" style="display:none">
+    <a href="dashboard.html" class="back">← Volver a mis pacientes</a>
+    <div class="app-main-header">
+      <h1>Formato de informe</h1>
+    </div>
+
+    <div class="stack">
+      <div class="card">
+        <p class="section-title">Estructura predeterminada</p>
+        <p class="card-hint">Si no cargás una plantilla propia, los informes se generan con esta estructura:</p>
+        <ol class="default-structure">
+          <li>Encabezado (paciente y fecha)</li>
+          <li>Motivo de consulta / diagnóstico</li>
+          <li>Antecedentes relevantes</li>
+          <li>Resumen de la evolución, a partir de las notas de sesión</li>
+          <li>Consideraciones adicionales del profesional (si las hay)</li>
+          <li>Conclusión y recomendaciones</li>
+        </ol>
+      </div>
+
+      <div class="card">
+        <p class="section-title">Tu propia plantilla</p>
+        <p class="card-hint">Subí un PDF o Word con el formato que ya usás en tu consulta. La IA va a generar los informes siguiendo esa estructura en vez de la predeterminada. Podés revisar y ajustar el texto extraído antes de guardar.</p>
+
+        <div class="field">
+          <div class="field-toolbar">
+            <button type="button" class="btn-icon" id="file-btn-template">📄 Cargar documento (PDF/Word)</button>
+            <input type="file" id="file-input-template" accept=".pdf,.docx" hidden />
+          </div>
+          <textarea id="template-text" rows="12" placeholder="Subí un documento para autocompletar este campo, o escribí/pegá tu formato directamente acá."></textarea>
+        </div>
+
+        <div class="report-actions">
+          <button type="button" class="btn btn-danger" id="btn-remove-template">Quitar plantilla (usar predeterminada)</button>
+          <button type="button" class="btn btn-primary" id="btn-save-template">Guardar plantilla</button>
+        </div>
+        <p class="form-message" id="template-message"></p>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="../assets/supabase-config.js"></script>
+<script src="../assets/app-auth.js"></script>
+<script src="../assets/media-input.js"></script>
+<script>
+  let currentUserId = null;
+
+  (async () => {
+    const session = await requireSession();
+    if (!session) return;
+    currentUserId = session.user.id;
+    document.getElementById("user-email").textContent = session.user.email;
+
+    setupFileImportButton(
+      document.getElementById("file-btn-template"),
+      document.getElementById("file-input-template"),
+      document.getElementById("template-text")
+    );
+
+    await loadTemplate();
+
+    document.getElementById("loading").style.display = "none";
+    document.getElementById("content").style.display = "block";
+  })();
+
+  document.getElementById("btn-logout").addEventListener("click", signOut);
+
+  async function loadTemplate() {
+    const { data } = await sb
+      .from("report_templates")
+      .select("template_text")
+      .eq("user_id", currentUserId)
+      .maybeSingle();
+
+    document.getElementById("template-text").value = (data && data.template_text) || "";
+  }
+
+  document.getElementById("btn-save-template").addEventListener("click", async () => {
+    const msg = document.getElementById("template-message");
+    msg.textContent = "Guardando...";
+    msg.className = "form-message";
+
+    const text = document.getElementById("template-text").value.trim();
+
+    const { error } = await sb.from("report_templates").upsert({
+      user_id: currentUserId,
+      template_text: text || null,
+      updated_at: new Date().toISOString(),
+    });
+
+    msg.textContent = error ? error.message : "Plantilla guardada.";
+    msg.className = error ? "form-message error" : "form-message success";
+  });
+
+  document.getElementById("btn-remove-template").addEventListener("click", async () => {
+    const msg = document.getElementById("template-message");
+    msg.textContent = "Quitando...";
+    msg.className = "form-message";
+
+    document.getElementById("template-text").value = "";
+
+    const { error } = await sb.from("report_templates").upsert({
+      user_id: currentUserId,
+      template_text: null,
+      updated_at: new Date().toISOString(),
+    });
+
+    msg.textContent = error ? error.message : "Listo, se va a usar la estructura predeterminada.";
+    msg.className = error ? "form-message error" : "form-message success";
+  });
+</script>
+</body>
+</html>

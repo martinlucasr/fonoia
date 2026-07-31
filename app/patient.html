@@ -401,6 +401,12 @@
       const { data: { session } } = await sb.auth.getSession();
       if (!session) throw new Error("Sesión expirada, volvé a iniciar sesión.");
 
+      const { data: templateRow } = await sb
+        .from("report_templates")
+        .select("template_text")
+        .eq("user_id", currentUserId)
+        .maybeSingle();
+
       const response = await fetch("/.netlify/functions/generate-report", {
         method: "POST",
         headers: {
@@ -413,6 +419,7 @@
           history: document.getElementById("hist-text").value,
           considerations: document.getElementById("considerations-text").value,
           notes: allNotes || [],
+          customTemplate: (templateRow && templateRow.template_text) || null,
         }),
       });
 
