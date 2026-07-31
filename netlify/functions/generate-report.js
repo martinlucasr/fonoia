@@ -21,6 +21,40 @@ const DEFAULT_STRUCTURE = `Estructurá el informe con estas secciones, en este o
 9. SUGERENCIAS: recomendaciones para la familia, escuela u otros profesionales; indicar continuidad del tratamiento o derivación si corresponde
 10. Firma del profesional`;
 
+const QUESTIONS_SCHEMA = {
+  type: "object",
+  properties: {
+    needs_clarification: { type: "boolean" },
+    questions: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          id: { type: "string" },
+          question: { type: "string" },
+          options: { type: "array", items: { type: "string" } },
+        },
+        required: ["id", "question", "options"],
+        additionalProperties: false,
+      },
+    },
+  },
+  required: ["needs_clarification", "questions"],
+  additionalProperties: false,
+};
+
+function buildDataSummary({ patientName, diagnosis, history, considerations, notesText }) {
+  return `Paciente: ${patientName || "No especificado"}
+Diagnóstico / motivo de consulta: ${diagnosis || "No especificado"}
+Historia clínica: ${history || "No registrada"}
+
+Notas de sesión (orden cronológico):
+${notesText || "Sin notas registradas."}
+
+Consideraciones adicionales del profesional:
+${considerations || "Ninguna."}`;
+}
+
 exports.handler = async (event) => {
   try {
     if (event.httpMethod !== "POST") {
@@ -50,12 +84,55 @@ exports.handler = async (event) => {
       return { statusCode: 400, body: JSON.stringify({ error: "Solicitud inválida" }) };
     }
 
-    const { patientName, diagnosis, history, considerations, notes, customTemplate } = payload;
+    const {
+      patientName,
+      diagnosis,
+      history,
+      considerations,
+      notes,
+      customTemplate,
+      reportType,
+      step,
+      clarifications,
+    } = payload;
+
+    if (reportType && reportType !== "evolucion") {
+      return {
+        statusCode: 400,
+        body: JSON.stringify({ error: "Los informes de evaluación estarán disponibles próximamente." }),
+      };
+    }
 
     const notesText = (notes || [])
       .map((n) => `Sesión del ${n.session_date}: ${n.content}`)
       .join("\n\n");
 
+    const dataSummary = buildDataSummary({ patientName, diagnosis, history, considerations, notesText });
+    const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+
+    // ---------- Paso 1: detectar si hace falta preguntar algo ----------
+    if (step === "ask") {
+      const askPrompt = `Estos son los datos disponibles para redactar un informe de evolución fonoaudiológica:
+
+${dataSummary}
+
+Antes de redactar el informe, evaluá si falta información relevante o si algo es ambiguo de una forma que afecte la calidad del informe. Si es así, generá como máximo 4 preguntas breves y concretas para el profesional, cada una con 2 a 4 opciones de respuesta plausibles y breves. El profesional también va a poder escribir una respuesta distinta a las opciones, así que no hace falta cubrir todos los casos posibles. Si la información disponible ya es suficiente y clara, indicá que no hace falta preguntar nada.`;
+
+      const askMessage = await client.messages.create({
+        model: "claude-sonnet-5",
+        max_tokens: 1200,
+        system: SYSTEM_PROMPT,
+        messages: [{ role: "user", content: askPrompt }],
+        output_config: { format: { type: "json_schema", schema: QUESTIONS_SCHEMA } },
+      });
+
+      const askTextBlock = askMessage.content.find((b) => b.type === "text");
+      const parsed = askTextBlock ? JSON.parse(askTextBlock.text) : { needs_clarification: false, questions: [] };
+
+      return { statusCode: 200, body: JSON.stringify(parsed) };
+    }
+
+    // ---------- Paso 2: generar el informe ----------
     const structureInstructions = customTemplate
       ? `Usá como estructura y formato del informe la siguiente plantilla provista por el profesional. Respetá sus secciones, encabezados y organización, adaptando el contenido de este paciente a esa estructura en vez de usar un formato genérico:
 
@@ -64,21 +141,18 @@ ${customTemplate}
 --- FIN DE LA PLANTILLA ---`
       : DEFAULT_STRUCTURE;
 
+    const clarificationsText = (clarifications || [])
+      .map((c) => `- ${c.question} → ${c.answer}`)
+      .join("\n");
+
     const userPrompt = `Redactá un informe de evolución fonoaudiológica a partir de estos datos.
 
-Paciente: ${patientName || "No especificado"}
-Diagnóstico / motivo de consulta: ${diagnosis || "No especificado"}
-Historia clínica: ${history || "No registrada"}
+${dataSummary}
 
-Notas de sesión (orden cronológico):
-${notesText || "Sin notas registradas."}
-
-Consideraciones adicionales del profesional:
-${considerations || "Ninguna."}
+Respuestas del profesional a preguntas de aclaración:
+${clarificationsText || "Ninguna."}
 
 ${structureInstructions}`;
-
-    const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
     const message = await client.messages.create({
       model: "claude-sonnet-5",

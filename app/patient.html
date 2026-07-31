@@ -97,12 +97,28 @@
           <p class="form-message" id="considerations-message"></p>
         </form>
 
-        <button type="button" class="btn btn-primary" id="btn-generate-report" style="margin-top:18px">Generar informe con IA</button>
+        <div class="field" style="margin-top:18px">
+          <label for="report-type">Tipo de informe</label>
+          <select id="report-type">
+            <option value="evolucion" selected>Informe de evolución</option>
+            <option value="evaluacion" disabled>Informe de evaluación (próximamente)</option>
+          </select>
+        </div>
+
+        <button type="button" class="btn btn-primary" id="btn-generate-report">Generar informe de evolución con IA</button>
+      </div>
+
+      <!-- ACLARACIONES ANTES DE GENERAR -->
+      <div class="card card-featured" id="clarification-card" style="display:none">
+        <p class="section-title">Antes de generar el informe...</p>
+        <p class="card-hint">La IA encontró algunos puntos que conviene aclarar. Elegí una opción o escribí la tuya en "Otro".</p>
+        <div id="clarification-questions"></div>
+        <button type="button" class="btn btn-primary" id="btn-submit-clarifications" style="margin-top:12px">Continuar y generar informe</button>
       </div>
 
       <!-- INFORME GENERADO -->
       <div class="card" id="report-result-card" style="display:none">
-        <p class="section-title">Informe generado</p>
+        <p class="section-title">Informe de evolución generado</p>
         <p class="card-hint">Revisá y ajustá el texto antes de guardarlo o exportarlo — es un borrador generado por IA.</p>
         <div class="field">
           <textarea id="report-result-text" rows="14"></textarea>
@@ -383,53 +399,160 @@
     loadNotes();
   });
 
-  // ---------- Generar informe con IA ----------
+  // ---------- Generar informe con IA (con preguntas de aclaración) ----------
+  async function buildReportPayload() {
+    const { data: allNotes, error: notesError } = await sb
+      .from("session_notes")
+      .select("session_date, content")
+      .eq("patient_id", patientId)
+      .order("session_date", { ascending: true });
+    if (notesError) throw new Error(notesError.message);
+
+    const { data: templateRow } = await sb
+      .from("report_templates")
+      .select("template_text")
+      .eq("user_id", currentUserId)
+      .maybeSingle();
+
+    return {
+      patientName: document.getElementById("patient-name").textContent,
+      diagnosis: document.getElementById("hist-diagnosis").value,
+      history: document.getElementById("hist-text").value,
+      considerations: document.getElementById("considerations-text").value,
+      notes: allNotes || [],
+      customTemplate: (templateRow && templateRow.template_text) || null,
+      reportType: document.getElementById("report-type").value,
+    };
+  }
+
+  async function callGenerateReport(body) {
+    const { data: { session } } = await sb.auth.getSession();
+    if (!session) throw new Error("Sesión expirada, volvé a iniciar sesión.");
+
+    const response = await fetch("/.netlify/functions/generate-report", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${session.access_token}`,
+      },
+      body: JSON.stringify(body),
+    });
+
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || "Error al generar el informe");
+    return result;
+  }
+
+  async function finalizeReport(basePayload, clarifications) {
+    const result = await callGenerateReport({ ...basePayload, step: "generate", clarifications });
+    document.getElementById("report-result-text").value = result.report;
+    const resultCard = document.getElementById("report-result-card");
+    resultCard.style.display = "block";
+    resultCard.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  function renderClarificationQuestions(questions, basePayload) {
+    const card = document.getElementById("clarification-card");
+    const container = document.getElementById("clarification-questions");
+    container.innerHTML = "";
+
+    questions.forEach((q) => {
+      const block = document.createElement("div");
+      block.className = "clarify-question";
+      block.dataset.questionText = q.question;
+
+      const title = document.createElement("p");
+      title.className = "clarify-question-text";
+      title.textContent = q.question;
+      block.appendChild(title);
+
+      const optionsWrap = document.createElement("div");
+      optionsWrap.className = "clarify-options";
+
+      const otherInput = document.createElement("input");
+      otherInput.type = "text";
+      otherInput.className = "clarify-other-input";
+      otherInput.placeholder = "Escribí tu respuesta";
+      otherInput.style.display = "none";
+
+      (q.options || []).forEach((opt) => {
+        const chip = document.createElement("button");
+        chip.type = "button";
+        chip.className = "clarify-chip";
+        chip.textContent = opt;
+        chip.addEventListener("click", () => {
+          optionsWrap.querySelectorAll(".clarify-chip").forEach((c) => c.classList.remove("selected"));
+          chip.classList.add("selected");
+          block.dataset.answer = opt;
+          otherInput.style.display = "none";
+        });
+        optionsWrap.appendChild(chip);
+      });
+
+      const otherChip = document.createElement("button");
+      otherChip.type = "button";
+      otherChip.className = "clarify-chip clarify-chip-other";
+      otherChip.textContent = "Otro";
+      otherChip.addEventListener("click", () => {
+        optionsWrap.querySelectorAll(".clarify-chip").forEach((c) => c.classList.remove("selected"));
+        otherChip.classList.add("selected");
+        otherInput.style.display = "block";
+        otherInput.focus();
+      });
+      optionsWrap.appendChild(otherChip);
+
+      otherInput.addEventListener("input", () => {
+        block.dataset.answer = otherInput.value;
+      });
+
+      block.appendChild(optionsWrap);
+      block.appendChild(otherInput);
+      container.appendChild(block);
+    });
+
+    card.style.display = "block";
+    card.scrollIntoView({ behavior: "smooth", block: "start" });
+
+    document.getElementById("btn-submit-clarifications").onclick = async () => {
+      const submitBtn = document.getElementById("btn-submit-clarifications");
+      submitBtn.disabled = true;
+      submitBtn.textContent = "Generando informe...";
+
+      try {
+        const clarifications = Array.from(container.querySelectorAll(".clarify-question")).map((block) => ({
+          question: block.dataset.questionText,
+          answer: block.dataset.answer || "No especificado",
+        }));
+
+        await finalizeReport(basePayload, clarifications);
+        card.style.display = "none";
+      } catch (err) {
+        alert("No se pudo generar el informe: " + err.message);
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = "Continuar y generar informe";
+      }
+    };
+  }
+
   document.getElementById("btn-generate-report").addEventListener("click", async () => {
     const btn = document.getElementById("btn-generate-report");
     const originalLabel = btn.textContent;
     btn.disabled = true;
-    btn.textContent = "Generando informe...";
+    btn.textContent = "Analizando información...";
+    document.getElementById("clarification-card").style.display = "none";
 
     try {
-      const { data: allNotes, error: notesError } = await sb
-        .from("session_notes")
-        .select("session_date, content")
-        .eq("patient_id", patientId)
-        .order("session_date", { ascending: true });
-      if (notesError) throw new Error(notesError.message);
+      const basePayload = await buildReportPayload();
+      const askResult = await callGenerateReport({ ...basePayload, step: "ask" });
 
-      const { data: { session } } = await sb.auth.getSession();
-      if (!session) throw new Error("Sesión expirada, volvé a iniciar sesión.");
+      if (askResult.needs_clarification && askResult.questions && askResult.questions.length) {
+        renderClarificationQuestions(askResult.questions, basePayload);
+        return;
+      }
 
-      const { data: templateRow } = await sb
-        .from("report_templates")
-        .select("template_text")
-        .eq("user_id", currentUserId)
-        .maybeSingle();
-
-      const response = await fetch("/.netlify/functions/generate-report", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify({
-          patientName: document.getElementById("patient-name").textContent,
-          diagnosis: document.getElementById("hist-diagnosis").value,
-          history: document.getElementById("hist-text").value,
-          considerations: document.getElementById("considerations-text").value,
-          notes: allNotes || [],
-          customTemplate: (templateRow && templateRow.template_text) || null,
-        }),
-      });
-
-      const result = await response.json();
-      if (!response.ok) throw new Error(result.error || "Error al generar el informe");
-
-      document.getElementById("report-result-text").value = result.report;
-      const card = document.getElementById("report-result-card");
-      card.style.display = "block";
-      card.scrollIntoView({ behavior: "smooth", block: "start" });
+      btn.textContent = "Generando informe...";
+      await finalizeReport(basePayload, []);
     } catch (err) {
       alert("No se pudo generar el informe: " + err.message);
     } finally {
