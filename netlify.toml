@@ -1,2 +1,8 @@
 [build]
   functions = "netlify/functions"
+
+[build.environment]
+  # SUPABASE_URL y SUPABASE_ANON_KEY son intencionalmente públicas (se usan en el
+  # cliente, protegidas por Row Level Security) — el escaneo de secretos de Netlify
+  # las marca como falso positivo porque aparecen en assets/supabase-config.js.
+  SECRETS_SCAN_OMIT_KEYS = "SUPABASE_URL,SUPABASE_ANON_KEY"
