@@ -37,7 +37,8 @@ const DEFAULT_STRUCTURE = `Estructurá el informe con estas secciones, en este o
 const FORMAT_CONVENTION = `Convenciones de formato del texto (importante, se usa para previsualizar el informe como un documento):
 - La primera línea del informe tiene que ser el lugar y la fecha (por ejemplo "Montevideo, 15 de julio de 2026."), sin nada antes.
 - Los títulos de cada sección van solos en su propia línea, en MAYÚSCULAS (por ejemplo "ANTECEDENTES PERSONALES"), seguidos del contenido de esa sección en el/los párrafo/s siguientes.
-- No uses markdown, asteriscos ni numeración para los títulos de sección.`;
+- No uses markdown ni asteriscos ni numeración para los títulos de sección.
+- Desarrollá el contenido en párrafos redactados en todas las secciones — no uses viñetas ni listas. La ÚNICA excepción es la sección de SUGERENCIAS (o su equivalente si el profesional usa otro nombre para esa sección): ahí sí podés usar viñetas, una recomendación por línea, cada línea empezando con "- ".`;
 
 const QUESTIONS_SCHEMA = {
   type: "object",

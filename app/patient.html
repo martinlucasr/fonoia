@@ -126,6 +126,7 @@
         <p class="section-title">Antes de generar el informe...</p>
         <p class="card-hint">La IA encontró algunos puntos que conviene aclarar. Elegí una opción, escribí la tuya en "Otro", u omití si no aplica.</p>
         <p class="clarify-progress" id="clarification-progress"></p>
+        <div class="clarify-progress-bar"><div class="clarify-progress-fill" id="clarification-progress-fill"></div></div>
         <div id="clarification-questions"></div>
         <p class="clarify-required-note" id="clarification-required-note"></p>
         <div class="clarify-nav">
@@ -141,10 +142,23 @@
         <div id="report-result-text" class="report-preview-page" contenteditable="true"></div>
         <div class="report-actions" style="margin-top:16px">
           <button type="button" class="btn btn-secondary" id="btn-copy-report">Copiar</button>
-          <button type="button" class="btn btn-secondary" id="btn-download-report">Descargar (.txt)</button>
+          <button type="button" class="btn btn-secondary" id="btn-download-word">Descargar Word</button>
+          <button type="button" class="btn btn-secondary" id="btn-download-pdf">Descargar PDF</button>
           <button type="button" class="btn btn-primary" id="btn-save-report">Guardar informe</button>
         </div>
         <p class="form-message" id="report-message"></p>
+      </div>
+
+      <!-- INFORMES GUARDADOS -->
+      <div class="card">
+        <div class="card-header-row">
+          <p class="section-title">Informes guardados</p>
+          <button type="button" class="link-toggle" id="btn-toggle-reports">Ver informes ▾</button>
+        </div>
+        <div id="saved-reports-body" style="display:none">
+          <div class="saved-reports-list" id="saved-reports-list"></div>
+          <p id="saved-reports-empty" class="empty-state" style="display:none">Todavía no hay informes guardados.</p>
+        </div>
       </div>
 
     </div>
@@ -187,6 +201,7 @@
   let currentUserId = null;
   let currentRangeMonths = "6";
   let totalNotesCount = 0;
+  let currentReportId = null;
 
   const DEFAULT_SECTIONS = [
     "Encabezado (lugar y fecha)",
@@ -591,11 +606,14 @@
 
       const isAllCaps = trimmed.length < 70 && trimmed === trimmed.toUpperCase() && /[A-ZÁÉÍÓÚÑ]/.test(trimmed);
       const isTitle = /informe de evoluci[oó]n/i.test(trimmed) && trimmed === trimmed.toUpperCase();
+      const isBullet = /^[-•]\s+/.test(trimmed);
 
       if (isTitle) {
         html += `<p class="doc-title">${escapeHtml(trimmed)}</p>`;
       } else if (isAllCaps) {
         html += `<strong>${escapeHtml(trimmed)}</strong>`;
+      } else if (isBullet) {
+        html += `<p class="doc-bullet">${escapeHtml(trimmed.replace(/^[-•]\s+/, "• "))}</p>`;
       } else {
         html += `<p>${escapeHtml(trimmed)}</p>`;
       }
@@ -607,6 +625,8 @@
   async function finalizeReport(basePayload, clarifications) {
     const result = await callGenerateReport({ ...basePayload, step: "generate", clarifications });
     document.getElementById("report-result-text").innerHTML = renderReportPreview(result.report);
+    currentReportId = null;
+    document.getElementById("btn-save-report").textContent = "Guardar informe";
     const resultCard = document.getElementById("report-result-card");
     resultCard.style.display = "block";
     resultCard.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -616,6 +636,7 @@
     const card = document.getElementById("clarification-card");
     const container = document.getElementById("clarification-questions");
     const progressEl = document.getElementById("clarification-progress");
+    const progressFillEl = document.getElementById("clarification-progress-fill");
     const requiredNote = document.getElementById("clarification-required-note");
     const prevBtn = document.getElementById("btn-clarify-prev");
     const nextBtn = document.getElementById("btn-clarify-next");
@@ -626,6 +647,7 @@
     function renderCurrent() {
       const q = questions[currentIndex];
       progressEl.textContent = `Pregunta ${currentIndex + 1} de ${questions.length}`;
+      progressFillEl.style.width = `${((currentIndex + 1) / questions.length) * 100}%`;
       requiredNote.textContent = "";
       container.innerHTML = "";
 
@@ -777,15 +799,56 @@
     msg.className = "form-message success";
   });
 
-  document.getElementById("btn-download-report").addEventListener("click", () => {
+  async function downloadReportFile(format) {
+    const { data: { session } } = await sb.auth.getSession();
+    if (!session) throw new Error("Sesión expirada, volvé a iniciar sesión.");
+
     const text = document.getElementById("report-result-text").innerText;
-    const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
+    const response = await fetch("/.netlify/functions/export-report", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${session.access_token}`,
+      },
+      body: JSON.stringify({ text, format }),
+    });
+
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || "Error al exportar el informe");
+
+    const byteChars = atob(result.fileBase64);
+    const byteNumbers = new Array(byteChars.length);
+    for (let i = 0; i < byteChars.length; i++) byteNumbers[i] = byteChars.charCodeAt(i);
+    const blob = new Blob([new Uint8Array(byteNumbers)], { type: result.mimeType });
+
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `informe-${document.getElementById("patient-name").textContent.replace(/\s+/g, "-")}.txt`;
+    a.download = `informe-${document.getElementById("patient-name").textContent.replace(/\s+/g, "-")}.${result.extension}`;
     a.click();
     URL.revokeObjectURL(url);
+  }
+
+  document.getElementById("btn-download-word").addEventListener("click", async (e) => {
+    const btn = e.currentTarget;
+    setLoading(btn, "Generando...");
+    try {
+      await downloadReportFile("docx");
+    } catch (err) {
+      alert("No se pudo descargar el Word: " + err.message);
+    }
+    clearLoading(btn);
+  });
+
+  document.getElementById("btn-download-pdf").addEventListener("click", async (e) => {
+    const btn = e.currentTarget;
+    setLoading(btn, "Generando...");
+    try {
+      await downloadReportFile("pdf");
+    } catch (err) {
+      alert("No se pudo descargar el PDF: " + err.message);
+    }
+    clearLoading(btn);
   });
 
   document.getElementById("btn-save-report").addEventListener("click", async (e) => {
@@ -793,15 +856,92 @@
     const msg = document.getElementById("report-message");
     setLoading(btn, "Guardando...");
 
-    const { error } = await sb.from("reports").insert({
-      patient_id: patientId,
-      user_id: currentUserId,
-      content: document.getElementById("report-result-text").innerText,
-    });
+    const content = document.getElementById("report-result-text").innerText;
+    let error;
 
-    clearLoading(btn);
+    if (currentReportId) {
+      ({ error } = await sb.from("reports")
+        .update({ content, updated_at: new Date().toISOString() })
+        .eq("id", currentReportId));
+    } else {
+      const { data, error: insertError } = await sb.from("reports").insert({
+        patient_id: patientId,
+        user_id: currentUserId,
+        content,
+      }).select("id").single();
+      error = insertError;
+      if (!error && data) currentReportId = data.id;
+    }
+
+    clearLoading(btn, currentReportId ? "Guardar cambios" : "Guardar informe");
     msg.textContent = error ? error.message : "Informe guardado.";
     msg.className = error ? "form-message error" : "form-message success";
+    if (!error) loadSavedReports();
+  });
+
+  // ---------- Informes guardados ----------
+  document.getElementById("btn-toggle-reports").addEventListener("click", () => {
+    const body = document.getElementById("saved-reports-body");
+    const btn = document.getElementById("btn-toggle-reports");
+    const isHidden = body.style.display === "none";
+    body.style.display = isHidden ? "block" : "none";
+    btn.textContent = isHidden ? "Ocultar informes ▲" : "Ver informes ▾";
+    if (isHidden) loadSavedReports();
+  });
+
+  async function loadSavedReports() {
+    const { data, error } = await sb
+      .from("reports")
+      .select("id, content, created_at, updated_at")
+      .eq("patient_id", patientId)
+      .order("created_at", { ascending: false });
+
+    const list = document.getElementById("saved-reports-list");
+    const empty = document.getElementById("saved-reports-empty");
+
+    if (error) {
+      list.innerHTML = `<p class="form-message error">${error.message}</p>`;
+      return;
+    }
+
+    if (!data.length) {
+      empty.style.display = "block";
+      list.innerHTML = "";
+      return;
+    }
+
+    empty.style.display = "none";
+    list.innerHTML = data.map((r) => {
+      const snippet = r.content.replace(/\s+/g, " ").trim().slice(0, 90);
+      return `
+        <div class="saved-report-item" data-id="${r.id}">
+          <div class="saved-report-info">
+            <p class="saved-report-date">${formatDateTime(r.updated_at || r.created_at)}</p>
+            <p class="saved-report-snippet">${escapeHtml(snippet)}${snippet.length === 90 ? "…" : ""}</p>
+          </div>
+          <button type="button" class="btn btn-secondary btn-view-report">Ver / Editar</button>
+        </div>
+      `;
+    }).join("");
+  }
+
+  document.getElementById("saved-reports-list").addEventListener("click", (e) => {
+    const btn = e.target.closest(".btn-view-report");
+    if (!btn) return;
+    const item = btn.closest(".saved-report-item");
+    const id = item.dataset.id;
+    sb.from("reports").select("content").eq("id", id).single().then(({ data, error }) => {
+      if (error || !data) {
+        alert("No se pudo cargar el informe.");
+        return;
+      }
+      currentReportId = id;
+      document.getElementById("report-result-text").innerHTML = renderReportPreview(data.content);
+      document.getElementById("btn-save-report").textContent = "Guardar cambios";
+      const resultCard = document.getElementById("report-result-card");
+      resultCard.style.display = "block";
+      resultCard.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
   });
 
   function escapeHtml(str) {
@@ -813,6 +953,13 @@
   function formatDate(isoDate) {
     const [y, m, d] = isoDate.split("-");
     return `${d}/${m}/${y}`;
+  }
+
+  function formatDateTime(isoString) {
+    const date = new Date(isoString);
+    const datePart = date.toLocaleDateString("es-UY");
+    const timePart = date.toLocaleTimeString("es-UY", { hour: "2-digit", minute: "2-digit" });
+    return `${datePart} ${timePart}`;
   }
 </script>
 </body>
