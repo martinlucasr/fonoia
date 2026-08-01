@@ -17,7 +17,7 @@
       FonoIA
     </a>
     <div class="app-user">
-      <span id="user-email"></span>
+      <span id="user-display-name"></span>
       <button class="btn btn-secondary" id="btn-logout">Cerrar sesión</button>
     </div>
   </div>
@@ -83,7 +83,7 @@
     const session = await requireSession();
     if (!session) return;
     currentUserId = session.user.id;
-    document.getElementById("user-email").textContent = session.user.email;
+    document.getElementById("user-display-name").textContent = session.user.user_metadata?.full_name || session.user.email;
 
     setupFileImportButton(
       document.getElementById("file-btn-template"),

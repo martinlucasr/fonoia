@@ -17,7 +17,7 @@
       FonoIA
     </a>
     <div class="app-user">
-      <span id="user-email"></span>
+      <span id="user-display-name"></span>
       <button class="btn btn-secondary" id="btn-logout">Cerrar sesión</button>
     </div>
   </div>
@@ -40,8 +40,16 @@
 
       <!-- DATOS BÁSICOS -->
       <div class="card">
-        <p class="section-title">Datos básicos</p>
-        <form id="form-basic-info">
+        <div class="card-header-row">
+          <p class="section-title">Datos básicos</p>
+          <button type="button" class="link-toggle" id="btn-edit-basic-info">✏️ Editar</button>
+        </div>
+        <div id="basic-info-display" class="basic-info-display">
+          <p class="basic-info-line"><strong>Nombre:</strong> <span id="display-name">—</span></p>
+          <p class="basic-info-line"><strong>Fecha de nacimiento:</strong> <span id="display-birthdate">—</span></p>
+          <p class="basic-info-line"><strong>Diagnóstico / motivo de consulta:</strong> <span id="display-diagnosis">—</span></p>
+        </div>
+        <form id="form-basic-info" style="display:none">
           <div class="field">
             <label for="basic-name">Nombre</label>
             <input type="text" id="basic-name" required />
@@ -54,30 +62,11 @@
             <label for="basic-diagnosis">Diagnóstico / motivo de consulta</label>
             <input type="text" id="basic-diagnosis" placeholder="Ej: Trastorno articulatorio /r/" />
           </div>
-          <button type="submit" class="btn btn-secondary">Guardar datos</button>
+          <div class="edit-actions">
+            <button type="button" class="btn btn-secondary" id="btn-cancel-basic-info">Cancelar</button>
+            <button type="submit" class="btn btn-primary">Guardar datos</button>
+          </div>
           <p class="form-message" id="basic-info-message"></p>
-        </form>
-      </div>
-
-      <!-- NUEVA NOTA DE SESIÓN (destacada, es lo de más uso) -->
-      <div class="card card-featured">
-        <p class="section-title">Nueva nota de sesión</p>
-        <form id="form-note">
-          <div class="field">
-            <label for="note-date">Fecha</label>
-            <input type="date" id="note-date" required />
-          </div>
-          <div class="field">
-            <label for="note-content">Notas de la sesión</label>
-            <div class="field-toolbar">
-              <button type="button" class="btn-icon" id="voice-note-content">🎤 Dictar</button>
-              <button type="button" class="btn-icon" id="file-btn-note-content">📄 Cargar documento (PDF/Word)</button>
-              <input type="file" id="file-input-note-content" accept=".pdf,.docx" hidden />
-            </div>
-            <textarea id="note-content" rows="4" placeholder="¿Qué se trabajó? ¿Cómo respondió el paciente?" required></textarea>
-          </div>
-          <button type="submit" class="btn btn-primary">Guardar nota</button>
-          <p class="form-message" id="note-message"></p>
         </form>
       </div>
 
@@ -102,6 +91,28 @@
           <div id="notes-list"></div>
           <p id="notes-empty" class="empty-state" style="display:none"></p>
         </div>
+      </div>
+
+      <!-- NUEVA NOTA DE SESIÓN (destacada, es lo de más uso) -->
+      <div class="card card-featured">
+        <p class="section-title">Nueva nota de sesión</p>
+        <form id="form-note">
+          <div class="field">
+            <label for="note-date">Fecha</label>
+            <input type="date" id="note-date" required />
+          </div>
+          <div class="field">
+            <label for="note-content">Notas de la sesión</label>
+            <div class="field-toolbar">
+              <button type="button" class="btn-icon" id="voice-note-content">🎤 Dictar</button>
+              <button type="button" class="btn-icon" id="file-btn-note-content">📄 Cargar documento (PDF/Word)</button>
+              <input type="file" id="file-input-note-content" accept=".pdf,.docx" hidden />
+            </div>
+            <textarea id="note-content" rows="4" placeholder="¿Qué se trabajó? ¿Cómo respondió el paciente?" required></textarea>
+          </div>
+          <button type="submit" class="btn btn-primary">Guardar nota</button>
+          <p class="form-message" id="note-message"></p>
+        </form>
       </div>
 
       <!-- TODO LO RELACIONADO A INFORMES (plegable desde el botón "Informes" del header) -->
@@ -256,7 +267,7 @@
     const session = await requireSession();
     if (!session) return;
     currentUserId = session.user.id;
-    document.getElementById("user-email").textContent = session.user.email;
+    document.getElementById("user-display-name").textContent = session.user.user_metadata?.full_name || session.user.email;
     document.getElementById("note-date").valueAsDate = new Date();
 
     setupVoiceButton(document.getElementById("voice-note-content"), document.getElementById("note-content"));
@@ -311,6 +322,7 @@
     }
 
     document.getElementById("patient-name").textContent = data.name;
+    renderBasicInfoDisplay(data);
     document.getElementById("basic-name").value = data.name || "";
     document.getElementById("basic-birthdate").value = data.birth_date || "";
     document.getElementById("basic-diagnosis").value = data.diagnosis || "";
@@ -357,6 +369,28 @@
     closeHistoryModal();
   });
 
+  function renderBasicInfoDisplay(data) {
+    document.getElementById("display-name").textContent = data.name || "—";
+    document.getElementById("display-birthdate").textContent = data.birth_date ? formatDate(data.birth_date) : "No especificada";
+    document.getElementById("display-diagnosis").textContent = data.diagnosis || "Sin diagnóstico registrado";
+  }
+
+  function showBasicInfoForm() {
+    document.getElementById("basic-info-display").style.display = "none";
+    document.getElementById("form-basic-info").style.display = "block";
+  }
+
+  function showBasicInfoDisplay() {
+    document.getElementById("form-basic-info").style.display = "none";
+    document.getElementById("basic-info-display").style.display = "flex";
+  }
+
+  document.getElementById("btn-edit-basic-info").addEventListener("click", showBasicInfoForm);
+  document.getElementById("btn-cancel-basic-info").addEventListener("click", () => {
+    document.getElementById("basic-info-message").textContent = "";
+    showBasicInfoDisplay();
+  });
+
   document.getElementById("form-basic-info").addEventListener("submit", async (e) => {
     e.preventDefault();
     const btn = e.submitter;
@@ -370,9 +404,14 @@
     const { error } = await sb.from("patients").update({ name, birth_date, diagnosis }).eq("id", patientId);
 
     clearLoading(btn, "Guardar datos");
-    msg.textContent = error ? error.message : "Datos actualizados.";
-    msg.className = error ? "form-message error" : "form-message success";
-    if (!error) document.getElementById("patient-name").textContent = name;
+    msg.textContent = error ? error.message : "";
+    msg.className = error ? "form-message error" : "form-message";
+
+    if (!error) {
+      document.getElementById("patient-name").textContent = name;
+      renderBasicInfoDisplay({ name, birth_date, diagnosis });
+      showBasicInfoDisplay();
+    }
   });
 
   document.getElementById("form-considerations").addEventListener("submit", async (e) => {

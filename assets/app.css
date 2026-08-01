@@ -245,6 +245,12 @@ p { margin: 0; }
 .note-edit-form { margin-top: 10px; display: flex; flex-direction: column; gap: 10px; }
 .note-edit-form .edit-actions { display: flex; gap: 8px; }
 
+/* Datos básicos (compacto, con edición vía botón) */
+.basic-info-display { display: flex; flex-direction: column; gap: 4px; }
+.basic-info-line { font-size: 13.5px; color: var(--color-ink-soft); margin: 0; }
+.basic-info-line strong { color: var(--color-ink); font-weight: 600; }
+#form-basic-info .edit-actions { display: flex; gap: 8px; margin-top: 4px; }
+
 /* Informe generado */
 #report-result-text { font-family: inherit; line-height: 1.6; }
 .report-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 4px; }
