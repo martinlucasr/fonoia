@@ -30,10 +30,34 @@
     <a href="dashboard.html" class="back">← Volver a mis pacientes</a>
     <div class="app-main-header">
       <h1 id="patient-name">—</h1>
-      <button type="button" class="btn-corner" id="btn-open-history">📋 Historia clínica</button>
+      <div class="header-actions">
+        <button type="button" class="btn-corner" id="btn-open-history">📋 Historia clínica</button>
+        <button type="button" class="btn-corner" id="btn-toggle-reports-section">📄 Informes</button>
+      </div>
     </div>
 
     <div class="stack">
+
+      <!-- DATOS BÁSICOS -->
+      <div class="card">
+        <p class="section-title">Datos básicos</p>
+        <form id="form-basic-info">
+          <div class="field">
+            <label for="basic-name">Nombre</label>
+            <input type="text" id="basic-name" required />
+          </div>
+          <div class="field">
+            <label for="basic-birthdate">Fecha de nacimiento</label>
+            <input type="date" id="basic-birthdate" />
+          </div>
+          <div class="field">
+            <label for="basic-diagnosis">Diagnóstico / motivo de consulta</label>
+            <input type="text" id="basic-diagnosis" placeholder="Ej: Trastorno articulatorio /r/" />
+          </div>
+          <button type="submit" class="btn btn-secondary">Guardar datos</button>
+          <p class="form-message" id="basic-info-message"></p>
+        </form>
+      </div>
 
       <!-- NUEVA NOTA DE SESIÓN (destacada, es lo de más uso) -->
       <div class="card card-featured">
@@ -80,17 +104,25 @@
         </div>
       </div>
 
-      <!-- ÍNDICE DEL INFORME (arrastrable) -->
+      <!-- TODO LO RELACIONADO A INFORMES (plegable desde el botón "Informes" del header) -->
+      <div id="reports-section" style="display:none">
+
+      <!-- ÍNDICE DEL INFORME (arrastrable, plegado por defecto) -->
       <div class="card">
-        <p class="section-title">Índice del informe</p>
-        <p class="card-hint">Este es el orden de secciones que va a seguir la IA para armar el informe — no aparece tal cual en el documento final, es solo tu guía de organización. Arrastrá para reordenar, quitá lo que no quieras, o agregá tus propias secciones.</p>
-        <ul id="section-order-list" class="section-order-list"></ul>
-        <div class="section-order-add">
-          <input type="text" id="new-section-input" placeholder="Agregar sección (ej: Antecedentes familiares)" />
-          <button type="button" class="btn btn-secondary" id="btn-add-section">+ Agregar</button>
+        <div class="card-header-row">
+          <p class="section-title">Índice del informe</p>
+          <button type="button" class="link-toggle" id="btn-toggle-section-order">Ver índice ▾</button>
         </div>
-        <button type="button" class="btn btn-secondary" id="btn-save-section-order" style="margin-top:12px">Guardar orden</button>
-        <p class="form-message" id="section-order-message"></p>
+        <div id="section-order-body" style="display:none">
+          <p class="card-hint">Este es el orden de secciones que va a seguir la IA para armar el informe — no aparece tal cual en el documento final, es solo tu guía de organización. Arrastrá para reordenar, quitá lo que no quieras, o agregá tus propias secciones. Este orden queda guardado como tu configuración predeterminada y se aplica también a los informes de tus otros pacientes.</p>
+          <ul id="section-order-list" class="section-order-list"></ul>
+          <div class="section-order-add">
+            <input type="text" id="new-section-input" placeholder="Agregar sección (ej: Antecedentes familiares)" />
+            <button type="button" class="btn btn-secondary" id="btn-add-section">+ Agregar</button>
+          </div>
+          <button type="button" class="btn btn-secondary" id="btn-save-section-order" style="margin-top:12px">Guardar orden</button>
+          <p class="form-message" id="section-order-message"></p>
+        </div>
       </div>
 
       <!-- CONSIDERACIONES + GENERAR INFORME -->
@@ -161,6 +193,9 @@
         </div>
       </div>
 
+      </div>
+      <!-- fin de #reports-section -->
+
     </div>
   </div>
 </main>
@@ -170,10 +205,6 @@
   <div class="modal modal-wide">
     <h2>Historia clínica</h2>
     <form id="form-history">
-      <div class="field">
-        <label for="hist-diagnosis">Diagnóstico / motivo de consulta</label>
-        <input type="text" id="hist-diagnosis" />
-      </div>
       <div class="field">
         <label for="hist-text">Antecedentes y notas generales</label>
         <div class="field-toolbar">
@@ -263,6 +294,14 @@
   document.getElementById("btn-open-history").addEventListener("click", openHistoryModal);
   document.getElementById("btn-close-history").addEventListener("click", closeHistoryModal);
 
+  // ---------- Informes (sección plegable desde el header) ----------
+  document.getElementById("btn-toggle-reports-section").addEventListener("click", () => {
+    const section = document.getElementById("reports-section");
+    const isHidden = section.style.display === "none";
+    section.style.display = isHidden ? "block" : "none";
+    if (isHidden) section.scrollIntoView({ behavior: "smooth", block: "start" });
+  });
+
   async function loadPatient() {
     const { data, error } = await sb.from("patients").select("*").eq("id", patientId).single();
 
@@ -272,11 +311,13 @@
     }
 
     document.getElementById("patient-name").textContent = data.name;
-    document.getElementById("hist-diagnosis").value = data.diagnosis || "";
+    document.getElementById("basic-name").value = data.name || "";
+    document.getElementById("basic-birthdate").value = data.birth_date || "";
+    document.getElementById("basic-diagnosis").value = data.diagnosis || "";
     document.getElementById("hist-text").value = data.history || "";
     document.getElementById("considerations-text").value = data.report_considerations || "";
 
-    if (!data.diagnosis && !data.history) {
+    if (!data.history) {
       openHistoryModal();
     }
 
@@ -302,10 +343,9 @@
     msg.textContent = "";
     msg.className = "form-message";
 
-    const diagnosis = document.getElementById("hist-diagnosis").value || null;
     const history = document.getElementById("hist-text").value || null;
 
-    const { error } = await sb.from("patients").update({ diagnosis, history }).eq("id", patientId);
+    const { error } = await sb.from("patients").update({ history }).eq("id", patientId);
     clearLoading(btn);
 
     if (error) {
@@ -315,6 +355,24 @@
     }
 
     closeHistoryModal();
+  });
+
+  document.getElementById("form-basic-info").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const btn = e.submitter;
+    const msg = document.getElementById("basic-info-message");
+    setLoading(btn, "Guardando...");
+
+    const name = document.getElementById("basic-name").value;
+    const birth_date = document.getElementById("basic-birthdate").value || null;
+    const diagnosis = document.getElementById("basic-diagnosis").value || null;
+
+    const { error } = await sb.from("patients").update({ name, birth_date, diagnosis }).eq("id", patientId);
+
+    clearLoading(btn, "Guardar datos");
+    msg.textContent = error ? error.message : "Datos actualizados.";
+    msg.className = error ? "form-message error" : "form-message success";
+    if (!error) document.getElementById("patient-name").textContent = name;
   });
 
   document.getElementById("form-considerations").addEventListener("submit", async (e) => {
@@ -333,6 +391,14 @@
   });
 
   // ---------- Índice del informe (arrastrable) ----------
+  document.getElementById("btn-toggle-section-order").addEventListener("click", () => {
+    const body = document.getElementById("section-order-body");
+    const btn = document.getElementById("btn-toggle-section-order");
+    const isHidden = body.style.display === "none";
+    body.style.display = isHidden ? "block" : "none";
+    btn.textContent = isHidden ? "Ocultar índice ▲" : "Ver índice ▾";
+  });
+
   function renderSectionOrderList() {
     const list = document.getElementById("section-order-list");
     list.innerHTML = "";
@@ -558,7 +624,7 @@
 
     return {
       patientName: document.getElementById("patient-name").textContent,
-      diagnosis: document.getElementById("hist-diagnosis").value,
+      diagnosis: document.getElementById("basic-diagnosis").value,
       history: document.getElementById("hist-text").value,
       considerations: document.getElementById("considerations-text").value,
       notes: allNotes || [],
