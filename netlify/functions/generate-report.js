@@ -29,7 +29,7 @@ const DEFAULT_STRUCTURE = `Estructurá el informe con estas secciones, en este o
 4. ANTECEDENTES PERSONALES: antecedentes prenatales, perinatales y postnatales relevantes; hitos del desarrollo (lenguaje, motricidad, alimentación, audición); antecedentes familiares o médicos relevantes — según lo que surja de la historia clínica
 5. PRESENTACIÓN: descripción breve del paciente (actitud, disposición, colaboración, interés en la tarea, rasgos comunicativos generales) — según lo que surja de las notas de sesión
 6. EVALUACIÓN: áreas evaluadas (lenguaje, habla, voz, audición, deglución, según corresponda), instrumentos o pruebas utilizadas, resultados relevantes
-7. EVOLUCIÓN: progreso a lo largo de las sesiones — respuesta al tratamiento, avances, dificultades persistentes, objetivos cumplidos y objetivos a continuar trabajando
+7. EVOLUCIÓN: integrá el proceso completo de trabajo en un relato único e integrado del progreso del paciente — NO hagas un repaso sesión por sesión ni menciones fechas puntuales de sesiones en este capítulo. Podés mencionar el tipo de trabajo realizado a lo largo del proceso (por ejemplo, en qué áreas se trabajó), pero como parte del relato general de la evolución, no como una lista cronológica. Incluí respuesta al tratamiento, avances logrados, dificultades persistentes y objetivos cumplidos. Si hay puntos que quedan pendientes o a continuar trabajando, integralos como parte del relato de la evolución (no como una lista aparte al final del capítulo)
 8. EN SUMA: conclusión general sobre el estado actual del paciente, comparando con el inicio del proceso
 9. SUGERENCIAS: recomendaciones para la familia, escuela u otros profesionales; indicar continuidad del tratamiento o derivación si corresponde
 10. Firma del profesional`;
