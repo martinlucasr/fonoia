@@ -88,7 +88,11 @@
     setupFileImportButton(
       document.getElementById("file-btn-template"),
       document.getElementById("file-input-template"),
-      document.getElementById("template-text")
+      (text) => {
+        const textarea = document.getElementById("template-text");
+        const sep = textarea.value.trim() ? "\n\n" : "";
+        textarea.value += sep + text;
+      }
     );
 
     await loadTemplate();

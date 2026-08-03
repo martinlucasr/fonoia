@@ -70,7 +70,10 @@ function setupVoiceButton(button, textarea) {
   });
 }
 
-function setupFileImportButton(button, fileInput, textarea) {
+// onExtracted(text, filename) se llama cuando el documento se procesó con éxito.
+// El llamador decide qué hacer con el texto: insertarlo en un textarea, o guardarlo
+// como adjunto separado sin tocar lo que el usuario ya escribió a mano.
+function setupFileImportButton(button, fileInput, onExtracted) {
   button.addEventListener("click", () => fileInput.click());
 
   fileInput.addEventListener("change", async () => {
@@ -96,8 +99,7 @@ function setupFileImportButton(button, fileInput, textarea) {
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || "Error al procesar el documento");
 
-      const sep = textarea.value.trim() ? "\n\n" : "";
-      textarea.value += sep + result.text;
+      onExtracted(result.text, file.name);
     } catch (err) {
       alert("No se pudo procesar el documento: " + err.message);
     } finally {
@@ -105,6 +107,36 @@ function setupFileImportButton(button, fileInput, textarea) {
       fileInput.value = "";
     }
   });
+}
+
+// Renderiza chips de "📎 archivo.pdf ✕" para una lista de adjuntos [{filename, text}],
+// y llama a onRemove(index) cuando se hace clic en la ✕ de un chip.
+function renderAttachmentChips(container, attachments, onRemove) {
+  container.innerHTML = "";
+  attachments.forEach((att, index) => {
+    const chip = document.createElement("span");
+    chip.className = "attachment-chip";
+    chip.innerHTML = `📎 ${escapeHtmlShared(att.filename)} <button type="button" class="attachment-chip-remove" title="Quitar">×</button>`;
+    chip.querySelector(".attachment-chip-remove").addEventListener("click", () => onRemove(index));
+    container.appendChild(chip);
+  });
+}
+
+function escapeHtmlShared(str) {
+  const div = document.createElement("div");
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+// Concatena el texto escrito a mano con el texto de los documentos adjuntos,
+// para que la IA tenga todo el contexto sin que se mezcle visualmente en el campo.
+function combineWithAttachments(mainText, attachments) {
+  const clean = (mainText || "").trim();
+  if (!attachments || !attachments.length) return clean;
+  const attachmentsText = attachments
+    .map((a) => `[Documento adjunto: ${a.filename}]\n${a.text}`)
+    .join("\n\n");
+  return [clean, attachmentsText].filter(Boolean).join("\n\n");
 }
 
 function fileToBase64(file) {

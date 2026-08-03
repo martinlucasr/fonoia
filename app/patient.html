@@ -36,6 +36,7 @@
       </div>
     </div>
 
+    <div id="main-view">
     <div class="stack">
 
       <!-- DATOS BÁSICOS -->
@@ -109,14 +110,41 @@
               <input type="file" id="file-input-note-content" accept=".pdf,.docx" hidden />
             </div>
             <textarea id="note-content" rows="4" placeholder="¿Qué se trabajó? ¿Cómo respondió el paciente?" required></textarea>
+            <div class="attachment-chips" id="note-attachments"></div>
           </div>
           <button type="submit" class="btn btn-primary">Guardar nota</button>
           <p class="form-message" id="note-message"></p>
         </form>
       </div>
 
-      <!-- TODO LO RELACIONADO A INFORMES (plegable desde el botón "Informes" del header) -->
-      <div id="reports-section" style="display:none">
+    </div>
+    </div>
+    <!-- fin de #main-view -->
+
+    <!-- HISTORIA CLÍNICA (sección, no modal) -->
+    <div id="history-section" class="stack" style="display:none">
+      <div class="card">
+        <p class="section-title">Historia clínica</p>
+        <p class="card-hint">Antecedentes, evaluaciones previas, contexto familiar y todo lo que sea relevante para entender al paciente en profundidad.</p>
+        <form id="form-history">
+          <div class="field">
+            <label for="hist-text">Antecedentes y notas generales</label>
+            <div class="field-toolbar">
+              <button type="button" class="btn-icon" id="file-btn-hist-text">📄 Cargar documento (PDF/Word)</button>
+              <input type="file" id="file-input-hist-text" accept=".pdf,.docx" hidden />
+            </div>
+            <textarea id="hist-text" rows="14" placeholder="Antecedentes, evaluaciones previas, contexto familiar, etc."></textarea>
+            <div class="attachment-chips" id="hist-attachments"></div>
+          </div>
+          <button type="submit" class="btn btn-primary">Guardar</button>
+          <p class="form-message" id="history-message"></p>
+        </form>
+      </div>
+    </div>
+    <!-- fin de #history-section -->
+
+    <!-- TODO LO RELACIONADO A INFORMES (plegable desde el botón "Informes" del header) -->
+    <div id="reports-section" class="stack" style="display:none">
 
       <!-- ÍNDICE DEL INFORME (arrastrable, plegado por defecto) -->
       <div class="card">
@@ -148,6 +176,7 @@
               <input type="file" id="file-input-considerations" accept=".pdf,.docx" hidden />
             </div>
             <textarea id="considerations-text" rows="4" placeholder="Ej: contexto familiar reciente, factores motivacionales, objetivos a mediano plazo..."></textarea>
+            <div class="attachment-chips" id="considerations-attachments"></div>
           </div>
           <button type="submit" class="btn btn-secondary">Guardar consideraciones</button>
           <p class="form-message" id="considerations-message"></p>
@@ -207,31 +236,8 @@
       </div>
       <!-- fin de #reports-section -->
 
-    </div>
   </div>
 </main>
-
-<!-- MODAL: historia clínica -->
-<div class="modal-backdrop" id="history-modal-backdrop">
-  <div class="modal modal-wide">
-    <h2>Historia clínica</h2>
-    <form id="form-history">
-      <div class="field">
-        <label for="hist-text">Antecedentes y notas generales</label>
-        <div class="field-toolbar">
-          <button type="button" class="btn-icon" id="file-btn-hist-text">📄 Cargar documento (PDF/Word)</button>
-          <input type="file" id="file-input-hist-text" accept=".pdf,.docx" hidden />
-        </div>
-        <textarea id="hist-text" rows="6" placeholder="Antecedentes, evaluaciones previas, contexto familiar, etc."></textarea>
-      </div>
-      <div class="modal-actions">
-        <button type="button" class="btn btn-secondary" id="btn-close-history">Cerrar</button>
-        <button type="submit" class="btn btn-primary">Guardar</button>
-      </div>
-      <p class="form-message" id="history-message"></p>
-    </form>
-  </div>
-</div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="../assets/supabase-config.js"></script>
@@ -244,6 +250,9 @@
   let currentRangeMonths = "6";
   let totalNotesCount = 0;
   let currentReportId = null;
+  let historyAttachments = [];
+  let considerationsAttachments = [];
+  let noteAttachments = [];
 
   const DEFAULT_SECTIONS = [
     "Encabezado (lugar y fecha)",
@@ -275,17 +284,26 @@
     setupFileImportButton(
       document.getElementById("file-btn-hist-text"),
       document.getElementById("file-input-hist-text"),
-      document.getElementById("hist-text")
+      (text, filename) => {
+        historyAttachments.push({ filename, text });
+        renderHistAttachments();
+      }
     );
     setupFileImportButton(
       document.getElementById("file-btn-note-content"),
       document.getElementById("file-input-note-content"),
-      document.getElementById("note-content")
+      (text, filename) => {
+        noteAttachments.push({ filename, text });
+        renderNoteAttachments();
+      }
     );
     setupFileImportButton(
       document.getElementById("file-btn-considerations"),
       document.getElementById("file-input-considerations"),
-      document.getElementById("considerations-text")
+      (text, filename) => {
+        considerationsAttachments.push({ filename, text });
+        renderConsiderationsAttachments();
+      }
     );
     setupSectionOrderDragAndDrop();
 
@@ -295,22 +313,25 @@
 
   document.getElementById("btn-logout").addEventListener("click", signOut);
 
-  // ---------- Historia clínica (modal) ----------
-  function openHistoryModal() {
-    document.getElementById("history-modal-backdrop").classList.add("open");
-  }
-  function closeHistoryModal() {
-    document.getElementById("history-modal-backdrop").classList.remove("open");
-  }
-  document.getElementById("btn-open-history").addEventListener("click", openHistoryModal);
-  document.getElementById("btn-close-history").addEventListener("click", closeHistoryModal);
+  // ---------- Navegación entre vistas (principal / historia clínica / informes) ----------
+  // Solo una vista a la vez: al entrar a "Historia clínica" o "Informes" se enfoca
+  // esa sección exclusivamente, sin ver el resto de la página debajo.
+  let currentView = "main";
 
-  // ---------- Informes (sección plegable desde el header) ----------
+  function showView(view) {
+    currentView = view;
+    document.getElementById("main-view").style.display = view === "main" ? "block" : "none";
+    document.getElementById("history-section").style.display = view === "historia" ? "flex" : "none";
+    document.getElementById("reports-section").style.display = view === "informes" ? "flex" : "none";
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  document.getElementById("btn-open-history").addEventListener("click", () => {
+    showView(currentView === "historia" ? "main" : "historia");
+  });
+
   document.getElementById("btn-toggle-reports-section").addEventListener("click", () => {
-    const section = document.getElementById("reports-section");
-    const isHidden = section.style.display === "none";
-    section.style.display = isHidden ? "block" : "none";
-    if (isHidden) section.scrollIntoView({ behavior: "smooth", block: "start" });
+    showView(currentView === "informes" ? "main" : "informes");
   });
 
   async function loadPatient() {
@@ -329,8 +350,13 @@
     document.getElementById("hist-text").value = data.history || "";
     document.getElementById("considerations-text").value = data.report_considerations || "";
 
+    historyAttachments = Array.isArray(data.history_attachments) ? data.history_attachments : [];
+    considerationsAttachments = Array.isArray(data.considerations_attachments) ? data.considerations_attachments : [];
+    renderHistAttachments();
+    renderConsiderationsAttachments();
+
     if (!data.history) {
-      openHistoryModal();
+      showView("historia");
     }
 
     const { data: templateRow } = await sb
@@ -357,17 +383,35 @@
 
     const history = document.getElementById("hist-text").value || null;
 
-    const { error } = await sb.from("patients").update({ history }).eq("id", patientId);
+    const { error } = await sb.from("patients")
+      .update({ history, history_attachments: historyAttachments })
+      .eq("id", patientId);
     clearLoading(btn);
 
-    if (error) {
-      msg.textContent = error.message;
-      msg.className = "form-message error";
-      return;
-    }
-
-    closeHistoryModal();
+    msg.textContent = error ? error.message : "Guardado.";
+    msg.className = error ? "form-message error" : "form-message success";
   });
+
+  function renderHistAttachments() {
+    renderAttachmentChips(document.getElementById("hist-attachments"), historyAttachments, (i) => {
+      historyAttachments.splice(i, 1);
+      renderHistAttachments();
+    });
+  }
+
+  function renderConsiderationsAttachments() {
+    renderAttachmentChips(document.getElementById("considerations-attachments"), considerationsAttachments, (i) => {
+      considerationsAttachments.splice(i, 1);
+      renderConsiderationsAttachments();
+    });
+  }
+
+  function renderNoteAttachments() {
+    renderAttachmentChips(document.getElementById("note-attachments"), noteAttachments, (i) => {
+      noteAttachments.splice(i, 1);
+      renderNoteAttachments();
+    });
+  }
 
   function renderBasicInfoDisplay(data) {
     document.getElementById("display-name").textContent = data.name || "—";
@@ -421,7 +465,10 @@
     setLoading(btn, "Guardando...");
 
     const { error } = await sb.from("patients")
-      .update({ report_considerations: document.getElementById("considerations-text").value || null })
+      .update({
+        report_considerations: document.getElementById("considerations-text").value || null,
+        considerations_attachments: considerationsAttachments,
+      })
       .eq("id", patientId);
 
     clearLoading(btn);
@@ -571,6 +618,7 @@
           <button type="button" class="btn-edit-note">Editar</button>
         </div>
         <p class="note-content-display">${escapeHtml(n.content)}</p>
+        ${(n.attachments && n.attachments.length) ? `<div class="attachment-chips attachment-chips-readonly">${n.attachments.map((a) => `<span class="attachment-chip">📎 ${escapeHtml(a.filename)}</span>`).join("")}</div>` : ""}
       </div>
     `).join("");
   }
@@ -630,6 +678,7 @@
       user_id: currentUserId,
       session_date: document.getElementById("note-date").value,
       content: document.getElementById("note-content").value,
+      attachments: noteAttachments,
     });
 
     clearLoading(btn);
@@ -641,6 +690,8 @@
     }
 
     document.getElementById("note-content").value = "";
+    noteAttachments = [];
+    renderNoteAttachments();
     msg.textContent = "Nota guardada.";
     msg.classList.add("success");
     loadNotes();
@@ -650,7 +701,7 @@
   async function buildReportPayload() {
     const { data: allNotes, error: notesError } = await sb
       .from("session_notes")
-      .select("session_date, content")
+      .select("session_date, content, attachments")
       .eq("patient_id", patientId)
       .order("session_date", { ascending: true });
     if (notesError) throw new Error(notesError.message);
@@ -664,9 +715,12 @@
     return {
       patientName: document.getElementById("patient-name").textContent,
       diagnosis: document.getElementById("basic-diagnosis").value,
-      history: document.getElementById("hist-text").value,
-      considerations: document.getElementById("considerations-text").value,
-      notes: allNotes || [],
+      history: combineWithAttachments(document.getElementById("hist-text").value, historyAttachments),
+      considerations: combineWithAttachments(document.getElementById("considerations-text").value, considerationsAttachments),
+      notes: (allNotes || []).map((n) => ({
+        session_date: n.session_date,
+        content: combineWithAttachments(n.content, n.attachments || []),
+      })),
       customTemplate: (templateRow && templateRow.template_text) || null,
       sectionOrder: sectionOrder,
       reportType: document.getElementById("report-type").value,
@@ -772,18 +826,37 @@
 
       const existing = answers[currentIndex];
 
+      // "specifyBase" es la opción base cuando el usuario eligió un chip que pide más
+      // detalle (texto "(especificar)"); el input de texto libre se combina con ella.
+      // Si es null, el input de texto libre actúa como la opción "Otro" (freeform puro).
+      let specifyBase = null;
+      const matchedSpecifyOption = (typeof existing === "string" && existing)
+        ? (q.options || []).find((o) => /\(especificar\)/i.test(o) && (existing === o || existing.startsWith(o + " — ")))
+        : null;
+
       (q.options || []).forEach((opt) => {
+        const needsSpecify = /\(especificar\)/i.test(opt);
         const chip = document.createElement("button");
         chip.type = "button";
         chip.className = "clarify-chip";
         chip.textContent = opt;
-        if (existing === opt) chip.classList.add("selected");
+        if (existing === opt || opt === matchedSpecifyOption) chip.classList.add("selected");
         chip.addEventListener("click", () => {
           optionsWrap.querySelectorAll(".clarify-chip").forEach((c) => c.classList.remove("selected"));
           chip.classList.add("selected");
-          answers[currentIndex] = opt;
-          otherInput.style.display = "none";
           requiredNote.textContent = "";
+          if (needsSpecify) {
+            specifyBase = opt;
+            otherInput.style.display = "block";
+            otherInput.value = "";
+            otherInput.placeholder = "Especificá acá";
+            otherInput.focus();
+            answers[currentIndex] = opt;
+          } else {
+            specifyBase = null;
+            otherInput.style.display = "none";
+            answers[currentIndex] = opt;
+          }
         });
         optionsWrap.appendChild(chip);
       });
@@ -795,6 +868,8 @@
       otherChip.addEventListener("click", () => {
         optionsWrap.querySelectorAll(".clarify-chip").forEach((c) => c.classList.remove("selected"));
         otherChip.classList.add("selected");
+        specifyBase = null;
+        otherInput.placeholder = "Escribí tu respuesta";
         otherInput.style.display = "block";
         otherInput.focus();
       });
@@ -808,6 +883,7 @@
         skipChip.addEventListener("click", () => {
           optionsWrap.querySelectorAll(".clarify-chip").forEach((c) => c.classList.remove("selected"));
           skipChip.classList.add("selected");
+          specifyBase = null;
           answers[currentIndex] = null;
           otherInput.style.display = "none";
           requiredNote.textContent = "";
@@ -817,9 +893,18 @@
       }
 
       otherInput.addEventListener("input", () => {
-        answers[currentIndex] = otherInput.value;
+        const val = otherInput.value.trim();
+        answers[currentIndex] = specifyBase ? (val ? `${specifyBase} — ${val}` : specifyBase) : otherInput.value;
       });
-      if (existing && typeof existing === "string" && !q.options.includes(existing)) {
+
+      if (matchedSpecifyOption) {
+        specifyBase = matchedSpecifyOption;
+        otherInput.style.display = "block";
+        otherInput.placeholder = "Especificá acá";
+        otherInput.value = existing.startsWith(matchedSpecifyOption + " — ")
+          ? existing.slice(matchedSpecifyOption.length + 3)
+          : "";
+      } else if (existing && typeof existing === "string" && !q.options.includes(existing)) {
         otherInput.style.display = "block";
         otherInput.value = existing;
         otherChip.classList.add("selected");
@@ -855,10 +940,11 @@
       setLoading(nextBtn, "Generando informe...");
       prevBtn.disabled = true;
       try {
-        const clarifications = questions.map((qq, i) => ({
-          question: qq.question,
-          answer: answers[i] === null ? "Omitido" : (answers[i] || "No especificado"),
-        }));
+        // Las preguntas omitidas o sin responder no se envían: no queremos que la IA
+        // mencione explícitamente que falta esa información en el informe.
+        const clarifications = questions
+          .map((qq, i) => ({ question: qq.question, answer: answers[i] }))
+          .filter((c) => typeof c.answer === "string" && c.answer.trim().length > 0);
         await finalizeReport(basePayload, clarifications);
         card.style.display = "none";
       } catch (err) {
@@ -934,33 +1020,9 @@
     URL.revokeObjectURL(url);
   }
 
-  document.getElementById("btn-download-word").addEventListener("click", async (e) => {
-    const btn = e.currentTarget;
-    setLoading(btn, "Generando...");
-    try {
-      await downloadReportFile("docx");
-    } catch (err) {
-      alert("No se pudo descargar el Word: " + err.message);
-    }
-    clearLoading(btn);
-  });
-
-  document.getElementById("btn-download-pdf").addEventListener("click", async (e) => {
-    const btn = e.currentTarget;
-    setLoading(btn, "Generando...");
-    try {
-      await downloadReportFile("pdf");
-    } catch (err) {
-      alert("No se pudo descargar el PDF: " + err.message);
-    }
-    clearLoading(btn);
-  });
-
-  document.getElementById("btn-save-report").addEventListener("click", async (e) => {
-    const btn = e.currentTarget;
-    const msg = document.getElementById("report-message");
-    setLoading(btn, "Guardando...");
-
+  // Guarda (inserta o actualiza) el informe actual en la base — se usa tanto al
+  // clickear "Guardar informe" como automáticamente al descargar en Word o PDF.
+  async function persistReport() {
     const content = document.getElementById("report-result-text").innerText;
     let error;
 
@@ -978,10 +1040,51 @@
       if (!error && data) currentReportId = data.id;
     }
 
+    document.getElementById("btn-save-report").textContent = currentReportId ? "Guardar cambios" : "Guardar informe";
+    if (!error) loadSavedReports();
+    return error;
+  }
+
+  document.getElementById("btn-download-word").addEventListener("click", async (e) => {
+    const btn = e.currentTarget;
+    const msg = document.getElementById("report-message");
+    setLoading(btn, "Generando...");
+    try {
+      await downloadReportFile("docx");
+      const error = await persistReport();
+      msg.textContent = error ? "Se descargó, pero no se pudo guardar: " + error.message : "Descargado y guardado.";
+      msg.className = error ? "form-message error" : "form-message success";
+    } catch (err) {
+      alert("No se pudo descargar el Word: " + err.message);
+    }
+    clearLoading(btn);
+  });
+
+  document.getElementById("btn-download-pdf").addEventListener("click", async (e) => {
+    const btn = e.currentTarget;
+    const msg = document.getElementById("report-message");
+    setLoading(btn, "Generando...");
+    try {
+      await downloadReportFile("pdf");
+      const error = await persistReport();
+      msg.textContent = error ? "Se descargó, pero no se pudo guardar: " + error.message : "Descargado y guardado.";
+      msg.className = error ? "form-message error" : "form-message success";
+    } catch (err) {
+      alert("No se pudo descargar el PDF: " + err.message);
+    }
+    clearLoading(btn);
+  });
+
+  document.getElementById("btn-save-report").addEventListener("click", async (e) => {
+    const btn = e.currentTarget;
+    const msg = document.getElementById("report-message");
+    setLoading(btn, "Guardando...");
+
+    const error = await persistReport();
+
     clearLoading(btn, currentReportId ? "Guardar cambios" : "Guardar informe");
     msg.textContent = error ? error.message : "Informe guardado.";
     msg.className = error ? "form-message error" : "form-message success";
-    if (!error) loadSavedReports();
   });
 
   // ---------- Informes guardados ----------
