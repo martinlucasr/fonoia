@@ -63,9 +63,14 @@ exports.handler = async (event) => {
       body: JSON.stringify({ text: text.trim() }),
     };
   } catch (err) {
+    const isCorruptPdf = isPdf && /xref|bad xref|invalid pdf|fileformaterror/i.test(err.message || "");
+    const friendlyMessage = isCorruptPdf
+      ? "Este PDF parece tener un formato dañado o poco estándar y no se pudo leer. Probá exportarlo de nuevo (por ejemplo, desde Word usando \"Guardar como PDF\"), o cargá el documento en formato Word (.docx) en su lugar."
+      : "No se pudo leer el documento: " + err.message;
+
     return {
       statusCode: 500,
-      body: JSON.stringify({ error: "No se pudo leer el documento: " + err.message }),
+      body: JSON.stringify({ error: friendlyMessage }),
     };
   }
 };
