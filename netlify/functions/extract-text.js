@@ -1,38 +1,5 @@
 const mammoth = require("mammoth");
 const pdfParse = require("pdf-parse");
-const pdfjsLib = require("pdfjs-dist/legacy/build/pdf.js");
-
-// pdf-parse usa un pdf.js muy viejo que falla ("bad XRef entry") en PDFs modernos
-// que usan cross-reference streams. pdfjs-dist los soporta; probamos ese primero
-// y caemos a pdf-parse solo si pdfjs-dist también falla.
-async function extractPdfTextWithPdfjs(buffer) {
-  const loadingTask = pdfjsLib.getDocument({
-    data: new Uint8Array(buffer),
-    useSystemFonts: true,
-    disableFontFace: true,
-  });
-  const pdf = await loadingTask.promise;
-  let text = "";
-  for (let i = 1; i <= pdf.numPages; i++) {
-    const page = await pdf.getPage(i);
-    const content = await page.getTextContent();
-    text += content.items.map((item) => item.str).join(" ") + "\n\n";
-  }
-  return text;
-}
-
-async function extractPdfText(buffer) {
-  try {
-    return await extractPdfTextWithPdfjs(buffer);
-  } catch (pdfjsErr) {
-    try {
-      const result = await pdfParse(buffer);
-      return result.text;
-    } catch {
-      throw pdfjsErr;
-    }
-  }
-}
 
 exports.handler = async (event) => {
   if (event.httpMethod !== "POST") {
@@ -84,7 +51,8 @@ exports.handler = async (event) => {
   try {
     let text;
     if (isPdf) {
-      text = await extractPdfText(buffer);
+      const result = await pdfParse(buffer);
+      text = result.text;
     } else {
       const result = await mammoth.extractRawText({ buffer });
       text = result.value;
