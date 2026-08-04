@@ -124,9 +124,17 @@
     <!-- HISTORIA CLÍNICA (sección, no modal) -->
     <div id="history-section" class="stack" style="display:none">
       <div class="card">
-        <p class="section-title">Historia clínica</p>
-        <p class="card-hint">Antecedentes, evaluaciones previas, contexto familiar y todo lo que sea relevante para entender al paciente en profundidad.</p>
-        <form id="form-history">
+        <div class="card-header-row">
+          <p class="section-title">Historia clínica</p>
+          <button type="button" class="link-toggle" id="btn-edit-history">✏️ Editar</button>
+        </div>
+        <div id="history-display">
+          <p class="card-hint" id="history-empty-hint">Todavía no hay antecedentes registrados.</p>
+          <p class="basic-info-line" id="history-display-text" style="display:none; white-space: pre-wrap;"></p>
+          <div class="attachment-chips" id="hist-attachments-display"></div>
+        </div>
+        <form id="form-history" style="display:none">
+          <p class="card-hint">Antecedentes, evaluaciones previas, contexto familiar y todo lo que sea relevante para entender al paciente en profundidad.</p>
           <div class="field">
             <label for="hist-text">Antecedentes y notas generales</label>
             <div class="field-toolbar">
@@ -136,7 +144,10 @@
             <textarea id="hist-text" rows="14" placeholder="Antecedentes, evaluaciones previas, contexto familiar, etc."></textarea>
             <div class="attachment-chips" id="hist-attachments"></div>
           </div>
-          <button type="submit" class="btn btn-primary">Guardar</button>
+          <div class="edit-actions">
+            <button type="button" class="btn btn-secondary" id="btn-cancel-history">Cancelar</button>
+            <button type="submit" class="btn btn-primary">Guardar</button>
+          </div>
           <p class="form-message" id="history-message"></p>
         </form>
       </div>
@@ -153,7 +164,7 @@
           <button type="button" class="link-toggle" id="btn-toggle-section-order">Ver índice ▾</button>
         </div>
         <div id="section-order-body" style="display:none">
-          <p class="card-hint">Este es el orden de secciones que va a seguir la IA para armar el informe — no aparece tal cual en el documento final, es solo tu guía de organización. Arrastrá para reordenar, quitá lo que no quieras, o agregá tus propias secciones. Este orden queda guardado como tu configuración predeterminada y se aplica también a los informes de tus otros pacientes.</p>
+          <p class="card-hint">Este es el orden de secciones que va a seguir la IA para armar el informe — no aparece tal cual en el documento final, es solo tu guía de organización. Arrastrá para reordenar, quitá lo que no quieras, o agregá tus propias secciones.</p>
           <ul id="section-order-list" class="section-order-list"></ul>
           <div class="section-order-add">
             <input type="text" id="new-section-input" placeholder="Agregar sección (ej: Antecedentes familiares)" />
@@ -166,9 +177,17 @@
 
       <!-- CONSIDERACIONES + GENERAR INFORME -->
       <div class="card">
-        <p class="section-title">Consideraciones para el informe</p>
-        <p class="card-hint">Incluí acá antecedentes relevantes, factores psicosociales o contextuales, y cualquier otro elemento clínico que quieras que se refleje en el informe y que no surja de las notas de sesión.</p>
-        <form id="form-considerations">
+        <div class="card-header-row">
+          <p class="section-title">Consideraciones para el informe</p>
+          <button type="button" class="link-toggle" id="btn-edit-considerations">✏️ Editar</button>
+        </div>
+        <div id="considerations-display">
+          <p class="card-hint" id="considerations-empty-hint">Todavía no agregaste consideraciones.</p>
+          <p class="basic-info-line" id="considerations-display-text" style="display:none; white-space: pre-wrap;"></p>
+          <div class="attachment-chips" id="considerations-attachments-display"></div>
+        </div>
+        <form id="form-considerations" style="display:none">
+          <p class="card-hint">Incluí acá antecedentes relevantes, factores psicosociales o contextuales, y cualquier otro elemento clínico que quieras que se refleje en el informe y que no surja de las notas de sesión.</p>
           <div class="field">
             <div class="field-toolbar">
               <button type="button" class="btn-icon" id="voice-considerations">🎤 Dictar</button>
@@ -178,7 +197,10 @@
             <textarea id="considerations-text" rows="4" placeholder="Ej: contexto familiar reciente, factores motivacionales, objetivos a mediano plazo..."></textarea>
             <div class="attachment-chips" id="considerations-attachments"></div>
           </div>
-          <button type="submit" class="btn btn-secondary">Guardar consideraciones</button>
+          <div class="edit-actions">
+            <button type="button" class="btn btn-secondary" id="btn-cancel-considerations">Cancelar</button>
+            <button type="submit" class="btn btn-secondary">Guardar consideraciones</button>
+          </div>
           <p class="form-message" id="considerations-message"></p>
         </form>
 
@@ -191,6 +213,10 @@
         </div>
 
         <button type="button" class="btn btn-primary" id="btn-generate-report">Generar informe de evolución con IA</button>
+        <div class="gen-progress-bar" id="generate-progress-bar" style="display:none">
+          <div class="gen-progress-fill" id="generate-progress-fill"></div>
+        </div>
+        <p class="gen-progress-label" id="generate-progress-label"></p>
       </div>
 
       <!-- ACLARACIONES ANTES DE GENERAR -->
@@ -238,6 +264,18 @@
 
   </div>
 </main>
+
+<!-- MODAL: ver contenido de un documento adjunto -->
+<div class="modal-backdrop" id="attachment-view-modal">
+  <div class="modal modal-wide">
+    <h2 id="attachment-view-title">Documento</h2>
+    <pre id="attachment-view-text" class="attachment-view-text"></pre>
+    <div class="modal-actions">
+      <button type="button" class="btn btn-secondary" id="btn-close-attachment-view">Cerrar</button>
+      <button type="button" class="btn btn-primary" id="btn-download-attachment">Descargar (.txt)</button>
+    </div>
+  </div>
+</div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="../assets/supabase-config.js"></script>
@@ -355,8 +393,22 @@
     renderHistAttachments();
     renderConsiderationsAttachments();
 
-    if (!data.history) {
+    renderHistoryDisplay(data.history);
+    renderConsiderationsDisplay(data.report_considerations);
+
+    // Si todavía no hay nada anotado, abrir directo en modo edición — no tiene
+    // sentido mostrar una vista de lectura vacía.
+    if (!data.history && !historyAttachments.length) {
+      showHistoryForm();
       showView("historia");
+    } else {
+      showHistoryDisplay();
+    }
+
+    if (!data.report_considerations && !considerationsAttachments.length) {
+      showConsiderationsForm();
+    } else {
+      showConsiderationsDisplay();
     }
 
     const { data: templateRow } = await sb
@@ -388,29 +440,119 @@
       .eq("id", patientId);
     clearLoading(btn);
 
-    msg.textContent = error ? error.message : "Guardado.";
-    msg.className = error ? "form-message error" : "form-message success";
+    msg.textContent = error ? error.message : "";
+    msg.className = error ? "form-message error" : "form-message";
+
+    if (!error) {
+      renderHistoryDisplay(history);
+      showHistoryDisplay();
+    }
+  });
+
+  // ---------- Historia clínica: lectura por defecto, botón para editar ----------
+  function renderHistoryDisplay(historyText) {
+    const emptyHint = document.getElementById("history-empty-hint");
+    const textEl = document.getElementById("history-display-text");
+    if (historyText) {
+      emptyHint.style.display = "none";
+      textEl.style.display = "block";
+      textEl.textContent = historyText;
+    } else {
+      emptyHint.style.display = "block";
+      textEl.style.display = "none";
+      textEl.textContent = "";
+    }
+  }
+
+  function showHistoryForm() {
+    document.getElementById("history-display").style.display = "none";
+    document.getElementById("form-history").style.display = "block";
+  }
+
+  function showHistoryDisplay() {
+    document.getElementById("form-history").style.display = "none";
+    document.getElementById("history-display").style.display = "block";
+  }
+
+  document.getElementById("btn-edit-history").addEventListener("click", showHistoryForm);
+  document.getElementById("btn-cancel-history").addEventListener("click", () => {
+    document.getElementById("history-message").textContent = "";
+    showHistoryDisplay();
+  });
+
+  // ---------- Consideraciones: lectura por defecto, botón para editar ----------
+  function renderConsiderationsDisplay(text) {
+    const emptyHint = document.getElementById("considerations-empty-hint");
+    const textEl = document.getElementById("considerations-display-text");
+    if (text) {
+      emptyHint.style.display = "none";
+      textEl.style.display = "block";
+      textEl.textContent = text;
+    } else {
+      emptyHint.style.display = "block";
+      textEl.style.display = "none";
+      textEl.textContent = "";
+    }
+  }
+
+  function showConsiderationsForm() {
+    document.getElementById("considerations-display").style.display = "none";
+    document.getElementById("form-considerations").style.display = "block";
+  }
+
+  function showConsiderationsDisplay() {
+    document.getElementById("form-considerations").style.display = "none";
+    document.getElementById("considerations-display").style.display = "block";
+  }
+
+  document.getElementById("btn-edit-considerations").addEventListener("click", showConsiderationsForm);
+  document.getElementById("btn-cancel-considerations").addEventListener("click", () => {
+    document.getElementById("considerations-message").textContent = "";
+    showConsiderationsDisplay();
+  });
+
+  // ---------- Ver / descargar el contenido de un documento adjunto ----------
+  let currentViewedAttachment = null;
+
+  function viewAttachment(att) {
+    currentViewedAttachment = att;
+    document.getElementById("attachment-view-title").textContent = att.filename;
+    document.getElementById("attachment-view-text").textContent = att.text;
+    document.getElementById("attachment-view-modal").classList.add("open");
+  }
+
+  document.getElementById("btn-close-attachment-view").addEventListener("click", () => {
+    document.getElementById("attachment-view-modal").classList.remove("open");
+  });
+
+  document.getElementById("btn-download-attachment").addEventListener("click", () => {
+    if (!currentViewedAttachment) return;
+    const blob = new Blob([currentViewedAttachment.text], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = currentViewedAttachment.filename.replace(/\.(pdf|docx)$/i, "") + ".txt";
+    a.click();
+    URL.revokeObjectURL(url);
   });
 
   function renderHistAttachments() {
-    renderAttachmentChips(document.getElementById("hist-attachments"), historyAttachments, (i) => {
-      historyAttachments.splice(i, 1);
-      renderHistAttachments();
-    });
+    const onRemove = (i) => { historyAttachments.splice(i, 1); renderHistAttachments(); };
+    renderAttachmentChips(document.getElementById("hist-attachments"), historyAttachments, onRemove, viewAttachment);
+    renderAttachmentChips(document.getElementById("hist-attachments-display"), historyAttachments, null, viewAttachment);
   }
 
   function renderConsiderationsAttachments() {
-    renderAttachmentChips(document.getElementById("considerations-attachments"), considerationsAttachments, (i) => {
-      considerationsAttachments.splice(i, 1);
-      renderConsiderationsAttachments();
-    });
+    const onRemove = (i) => { considerationsAttachments.splice(i, 1); renderConsiderationsAttachments(); };
+    renderAttachmentChips(document.getElementById("considerations-attachments"), considerationsAttachments, onRemove, viewAttachment);
+    renderAttachmentChips(document.getElementById("considerations-attachments-display"), considerationsAttachments, null, viewAttachment);
   }
 
   function renderNoteAttachments() {
     renderAttachmentChips(document.getElementById("note-attachments"), noteAttachments, (i) => {
       noteAttachments.splice(i, 1);
       renderNoteAttachments();
-    });
+    }, viewAttachment);
   }
 
   function renderBasicInfoDisplay(data) {
@@ -464,16 +606,23 @@
     const msg = document.getElementById("considerations-message");
     setLoading(btn, "Guardando...");
 
+    const considerationsValue = document.getElementById("considerations-text").value || null;
+
     const { error } = await sb.from("patients")
       .update({
-        report_considerations: document.getElementById("considerations-text").value || null,
+        report_considerations: considerationsValue,
         considerations_attachments: considerationsAttachments,
       })
       .eq("id", patientId);
 
     clearLoading(btn);
-    msg.textContent = error ? error.message : "Guardado.";
-    msg.className = error ? "form-message error" : "form-message success";
+    msg.textContent = error ? error.message : "";
+    msg.className = error ? "form-message error" : "form-message";
+
+    if (!error) {
+      renderConsiderationsDisplay(considerationsValue);
+      showConsiderationsDisplay();
+    }
   });
 
   // ---------- Índice del informe (arrastrable) ----------
@@ -618,9 +767,15 @@
           <button type="button" class="btn-edit-note">Editar</button>
         </div>
         <p class="note-content-display">${escapeHtml(n.content)}</p>
-        ${(n.attachments && n.attachments.length) ? `<div class="attachment-chips attachment-chips-readonly">${n.attachments.map((a) => `<span class="attachment-chip">📎 ${escapeHtml(a.filename)}</span>`).join("")}</div>` : ""}
+        <div class="attachment-chips attachment-chips-readonly" data-note-attachments="${n.id}"></div>
       </div>
     `).join("");
+
+    data.forEach((n) => {
+      if (!n.attachments || !n.attachments.length) return;
+      const container = list.querySelector(`[data-note-attachments="${n.id}"]`);
+      if (container) renderAttachmentChips(container, n.attachments, null, viewAttachment);
+    });
   }
 
   document.getElementById("notes-list").addEventListener("click", (e) => {
@@ -781,8 +936,55 @@
     return html;
   }
 
+  // No hay una señal real de progreso del servidor (es una sola llamada a la IA),
+  // así que simulamos un avance estimado hasta un tope, y lo completamos a 100%
+  // cuando la respuesta realmente llega.
+  function startFakeProgress(estimatedSeconds) {
+    const bar = document.getElementById("generate-progress-bar");
+    const fill = document.getElementById("generate-progress-fill");
+    const label = document.getElementById("generate-progress-label");
+    bar.style.display = "block";
+    let pct = 0;
+    const cap = 92;
+    const stepMs = 200;
+    const increment = cap / ((estimatedSeconds * 1000) / stepMs);
+    const interval = setInterval(() => {
+      pct = Math.min(cap, pct + increment);
+      fill.style.width = pct + "%";
+      label.textContent = `Generando informe... ${Math.round(pct)}%`;
+    }, stepMs);
+
+    return {
+      finish() {
+        clearInterval(interval);
+        fill.style.width = "100%";
+        label.textContent = "Generando informe... 100%";
+        setTimeout(() => {
+          bar.style.display = "none";
+          label.textContent = "";
+          fill.style.width = "0%";
+        }, 500);
+      },
+      cancel() {
+        clearInterval(interval);
+        bar.style.display = "none";
+        label.textContent = "";
+        fill.style.width = "0%";
+      },
+    };
+  }
+
   async function finalizeReport(basePayload, clarifications) {
-    const result = await callGenerateReport({ ...basePayload, step: "generate", clarifications });
+    const progress = startFakeProgress(20);
+    let result;
+    try {
+      result = await callGenerateReport({ ...basePayload, step: "generate", clarifications });
+    } catch (err) {
+      progress.cancel();
+      throw err;
+    }
+    progress.finish();
+
     document.getElementById("report-result-text").innerHTML = renderReportPreview(result.report);
     currentReportId = null;
     document.getElementById("btn-save-report").textContent = "Guardar informe";

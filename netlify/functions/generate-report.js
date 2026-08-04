@@ -141,7 +141,7 @@ Antes de redactar el informe, evaluá si falta información relevante o si algo 
 
       const askMessage = await client.messages.create({
         model: "claude-sonnet-5",
-        max_tokens: 1200,
+        max_tokens: 2048,
         system: SYSTEM_PROMPT,
         messages: [{ role: "user", content: askPrompt }],
         output_config: { format: { type: "json_schema", schema: QUESTIONS_SCHEMA } },

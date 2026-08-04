@@ -109,23 +109,34 @@ function setupFileImportButton(button, fileInput, onExtracted) {
   });
 }
 
-// Renderiza chips de "📎 archivo.pdf ✕" para una lista de adjuntos [{filename, text}],
-// y llama a onRemove(index) cuando se hace clic en la ✕ de un chip.
-function renderAttachmentChips(container, attachments, onRemove) {
+// Renderiza chips de "📎 archivo.pdf ✕" para una lista de adjuntos [{filename, text}].
+// Al hacer clic en el nombre se llama a onView(att) para ver/descargar su contenido.
+// Si se pasa onRemove, aparece además una "×" que llama a onRemove(index).
+function renderAttachmentChips(container, attachments, onRemove, onView) {
   container.innerHTML = "";
   attachments.forEach((att, index) => {
     const chip = document.createElement("span");
     chip.className = "attachment-chip";
-    chip.innerHTML = `📎 ${escapeHtmlShared(att.filename)} <button type="button" class="attachment-chip-remove" title="Quitar">×</button>`;
-    chip.querySelector(".attachment-chip-remove").addEventListener("click", () => onRemove(index));
+
+    const nameBtn = document.createElement("button");
+    nameBtn.type = "button";
+    nameBtn.className = "attachment-chip-name";
+    nameBtn.textContent = `📎 ${att.filename}`;
+    if (onView) nameBtn.addEventListener("click", () => onView(att));
+    chip.appendChild(nameBtn);
+
+    if (onRemove) {
+      const removeBtn = document.createElement("button");
+      removeBtn.type = "button";
+      removeBtn.className = "attachment-chip-remove";
+      removeBtn.title = "Quitar";
+      removeBtn.textContent = "×";
+      removeBtn.addEventListener("click", () => onRemove(index));
+      chip.appendChild(removeBtn);
+    }
+
     container.appendChild(chip);
   });
-}
-
-function escapeHtmlShared(str) {
-  const div = document.createElement("div");
-  div.textContent = str;
-  return div.innerHTML;
 }
 
 // Concatena el texto escrito a mano con el texto de los documentos adjuntos,
