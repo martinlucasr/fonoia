@@ -109,7 +109,16 @@
               <button type="button" class="btn-icon" id="file-btn-note-content">📄 Cargar documento (PDF/Word)</button>
               <input type="file" id="file-input-note-content" accept=".pdf,.docx" hidden />
             </div>
-            <textarea id="note-content" rows="4" placeholder="¿Qué se trabajó? ¿Cómo respondió el paciente?" required></textarea>
+            <div class="rich-toolbar" id="rich-toolbar-note-content">
+              <button type="button" class="rich-btn" data-cmd="bold" title="Negrita"><b>N</b></button>
+              <button type="button" class="rich-btn" data-cmd="italic" title="Cursiva"><i>I</i></button>
+              <button type="button" class="rich-btn" data-cmd="underline" title="Subrayado"><u>S</u></button>
+              <button type="button" class="rich-btn" data-cmd="insertUnorderedList" title="Viñetas">☰</button>
+              <button type="button" class="rich-btn" data-cmd="justifyLeft" title="Alinear a la izquierda">⇤</button>
+              <button type="button" class="rich-btn" data-cmd="justifyCenter" title="Centrar">↔</button>
+              <button type="button" class="rich-btn" data-cmd="justifyRight" title="Alinear a la derecha">⇥</button>
+            </div>
+            <div id="note-content" class="rich-editor" contenteditable="true" data-placeholder="¿Qué se trabajó? ¿Cómo respondió el paciente?"></div>
             <div class="attachment-chips" id="note-attachments"></div>
           </div>
           <button type="submit" class="btn btn-primary">Guardar nota</button>
@@ -141,7 +150,16 @@
               <button type="button" class="btn-icon" id="file-btn-hist-text">📄 Cargar documento (PDF/Word)</button>
               <input type="file" id="file-input-hist-text" accept=".pdf,.docx" hidden />
             </div>
-            <textarea id="hist-text" rows="14" placeholder="Antecedentes, evaluaciones previas, contexto familiar, etc."></textarea>
+            <div class="rich-toolbar" id="rich-toolbar-hist-text">
+              <button type="button" class="rich-btn" data-cmd="bold" title="Negrita"><b>N</b></button>
+              <button type="button" class="rich-btn" data-cmd="italic" title="Cursiva"><i>I</i></button>
+              <button type="button" class="rich-btn" data-cmd="underline" title="Subrayado"><u>S</u></button>
+              <button type="button" class="rich-btn" data-cmd="insertUnorderedList" title="Viñetas">☰</button>
+              <button type="button" class="rich-btn" data-cmd="justifyLeft" title="Alinear a la izquierda">⇤</button>
+              <button type="button" class="rich-btn" data-cmd="justifyCenter" title="Centrar">↔</button>
+              <button type="button" class="rich-btn" data-cmd="justifyRight" title="Alinear a la derecha">⇥</button>
+            </div>
+            <div id="hist-text" class="rich-editor" contenteditable="true" data-placeholder="Antecedentes, evaluaciones previas, contexto familiar, etc."></div>
             <div class="attachment-chips" id="hist-attachments"></div>
           </div>
           <div class="edit-actions">
@@ -194,7 +212,16 @@
               <button type="button" class="btn-icon" id="file-btn-considerations">📄 Cargar documento (PDF/Word)</button>
               <input type="file" id="file-input-considerations" accept=".pdf,.docx" hidden />
             </div>
-            <textarea id="considerations-text" rows="4" placeholder="Ej: contexto familiar reciente, factores motivacionales, objetivos a mediano plazo..."></textarea>
+            <div class="rich-toolbar" id="rich-toolbar-considerations-text">
+              <button type="button" class="rich-btn" data-cmd="bold" title="Negrita"><b>N</b></button>
+              <button type="button" class="rich-btn" data-cmd="italic" title="Cursiva"><i>I</i></button>
+              <button type="button" class="rich-btn" data-cmd="underline" title="Subrayado"><u>S</u></button>
+              <button type="button" class="rich-btn" data-cmd="insertUnorderedList" title="Viñetas">☰</button>
+              <button type="button" class="rich-btn" data-cmd="justifyLeft" title="Alinear a la izquierda">⇤</button>
+              <button type="button" class="rich-btn" data-cmd="justifyCenter" title="Centrar">↔</button>
+              <button type="button" class="rich-btn" data-cmd="justifyRight" title="Alinear a la derecha">⇥</button>
+            </div>
+            <div id="considerations-text" class="rich-editor" contenteditable="true" data-placeholder="Ej: contexto familiar reciente, factores motivacionales, objetivos a mediano plazo..."></div>
             <div class="attachment-chips" id="considerations-attachments"></div>
           </div>
           <div class="edit-actions">
@@ -319,27 +346,30 @@
 
     setupVoiceButton(document.getElementById("voice-note-content"), document.getElementById("note-content"));
     setupVoiceButton(document.getElementById("voice-considerations"), document.getElementById("considerations-text"));
+    setupRichToolbar(document.getElementById("rich-toolbar-note-content"), document.getElementById("note-content"));
+    setupRichToolbar(document.getElementById("rich-toolbar-hist-text"), document.getElementById("hist-text"));
+    setupRichToolbar(document.getElementById("rich-toolbar-considerations-text"), document.getElementById("considerations-text"));
     setupFileImportButton(
       document.getElementById("file-btn-hist-text"),
       document.getElementById("file-input-hist-text"),
-      (text, filename) => {
-        historyAttachments.push({ filename, text });
+      (text, filename, storagePath) => {
+        historyAttachments.push({ filename, text, storagePath });
         renderHistAttachments();
       }
     );
     setupFileImportButton(
       document.getElementById("file-btn-note-content"),
       document.getElementById("file-input-note-content"),
-      (text, filename) => {
-        noteAttachments.push({ filename, text });
+      (text, filename, storagePath) => {
+        noteAttachments.push({ filename, text, storagePath });
         renderNoteAttachments();
       }
     );
     setupFileImportButton(
       document.getElementById("file-btn-considerations"),
       document.getElementById("file-input-considerations"),
-      (text, filename) => {
-        considerationsAttachments.push({ filename, text });
+      (text, filename, storagePath) => {
+        considerationsAttachments.push({ filename, text, storagePath });
         renderConsiderationsAttachments();
       }
     );
@@ -385,8 +415,8 @@
     document.getElementById("basic-name").value = data.name || "";
     document.getElementById("basic-birthdate").value = data.birth_date || "";
     document.getElementById("basic-diagnosis").value = data.diagnosis || "";
-    document.getElementById("hist-text").value = data.history || "";
-    document.getElementById("considerations-text").value = data.report_considerations || "";
+    document.getElementById("hist-text").innerHTML = data.history || "";
+    document.getElementById("considerations-text").innerHTML = data.report_considerations || "";
 
     historyAttachments = Array.isArray(data.history_attachments) ? data.history_attachments : [];
     considerationsAttachments = Array.isArray(data.considerations_attachments) ? data.considerations_attachments : [];
@@ -398,14 +428,14 @@
 
     // Si todavía no hay nada anotado, abrir directo en modo edición — no tiene
     // sentido mostrar una vista de lectura vacía.
-    if (!data.history && !historyAttachments.length) {
+    if (isRichTextEmpty(data.history) && !historyAttachments.length) {
       showHistoryForm();
       showView("historia");
     } else {
       showHistoryDisplay();
     }
 
-    if (!data.report_considerations && !considerationsAttachments.length) {
+    if (isRichTextEmpty(data.report_considerations) && !considerationsAttachments.length) {
       showConsiderationsForm();
     } else {
       showConsiderationsDisplay();
@@ -433,7 +463,8 @@
     msg.textContent = "";
     msg.className = "form-message";
 
-    const history = document.getElementById("hist-text").value || null;
+    const histHtml = document.getElementById("hist-text").innerHTML;
+    const history = isRichTextEmpty(histHtml) ? null : histHtml;
 
     const { error } = await sb.from("patients")
       .update({ history, history_attachments: historyAttachments })
@@ -450,17 +481,17 @@
   });
 
   // ---------- Historia clínica: lectura por defecto, botón para editar ----------
-  function renderHistoryDisplay(historyText) {
+  function renderHistoryDisplay(historyHtml) {
     const emptyHint = document.getElementById("history-empty-hint");
     const textEl = document.getElementById("history-display-text");
-    if (historyText) {
+    if (!isRichTextEmpty(historyHtml)) {
       emptyHint.style.display = "none";
       textEl.style.display = "block";
-      textEl.textContent = historyText;
+      textEl.innerHTML = historyHtml;
     } else {
       emptyHint.style.display = "block";
       textEl.style.display = "none";
-      textEl.textContent = "";
+      textEl.innerHTML = "";
     }
   }
 
@@ -481,17 +512,17 @@
   });
 
   // ---------- Consideraciones: lectura por defecto, botón para editar ----------
-  function renderConsiderationsDisplay(text) {
+  function renderConsiderationsDisplay(html) {
     const emptyHint = document.getElementById("considerations-empty-hint");
     const textEl = document.getElementById("considerations-display-text");
-    if (text) {
+    if (!isRichTextEmpty(html)) {
       emptyHint.style.display = "none";
       textEl.style.display = "block";
-      textEl.textContent = text;
+      textEl.innerHTML = html;
     } else {
       emptyHint.style.display = "block";
       textEl.style.display = "none";
-      textEl.textContent = "";
+      textEl.innerHTML = "";
     }
   }
 
@@ -514,7 +545,19 @@
   // ---------- Ver / descargar el contenido de un documento adjunto ----------
   let currentViewedAttachment = null;
 
-  function viewAttachment(att) {
+  // Si el archivo original quedó guardado en Storage, lo abrimos directamente
+  // (el navegador lo muestra o lo descarga según el tipo). Si no (adjuntos viejos,
+  // guardados antes de esta función, o si la subida falló), mostramos el texto
+  // extraído como respaldo.
+  async function viewAttachment(att) {
+    if (att.storagePath) {
+      const { data, error } = await sb.storage.from("attachments").createSignedUrl(att.storagePath, 60);
+      if (!error && data && data.signedUrl) {
+        window.open(data.signedUrl, "_blank");
+        return;
+      }
+    }
+
     currentViewedAttachment = att;
     document.getElementById("attachment-view-title").textContent = att.filename;
     document.getElementById("attachment-view-text").textContent = att.text;
@@ -606,7 +649,8 @@
     const msg = document.getElementById("considerations-message");
     setLoading(btn, "Guardando...");
 
-    const considerationsValue = document.getElementById("considerations-text").value || null;
+    const considerationsHtml = document.getElementById("considerations-text").innerHTML;
+    const considerationsValue = isRichTextEmpty(considerationsHtml) ? null : considerationsHtml;
 
     const { error } = await sb.from("patients")
       .update({
@@ -766,7 +810,7 @@
           <span class="note-date">${formatDate(n.session_date)}</span>
           <button type="button" class="btn-edit-note">Editar</button>
         </div>
-        <p class="note-content-display">${escapeHtml(n.content)}</p>
+        <div class="note-content-display">${n.content}</div>
         <div class="attachment-chips attachment-chips-readonly" data-note-attachments="${n.id}"></div>
       </div>
     `).join("");
@@ -787,12 +831,21 @@
   function startEditNote(item) {
     const id = item.dataset.id;
     const date = item.dataset.date;
-    const content = item.querySelector(".note-content-display").textContent;
+    const content = item.querySelector(".note-content-display").innerHTML;
 
     item.innerHTML = `
       <div class="note-edit-form">
         <input type="date" class="edit-date" value="${date}" />
-        <textarea class="edit-content" rows="4">${escapeHtml(content)}</textarea>
+        <div class="rich-toolbar edit-rich-toolbar">
+          <button type="button" class="rich-btn" data-cmd="bold" title="Negrita"><b>N</b></button>
+          <button type="button" class="rich-btn" data-cmd="italic" title="Cursiva"><i>I</i></button>
+          <button type="button" class="rich-btn" data-cmd="underline" title="Subrayado"><u>S</u></button>
+          <button type="button" class="rich-btn" data-cmd="insertUnorderedList" title="Viñetas">☰</button>
+          <button type="button" class="rich-btn" data-cmd="justifyLeft" title="Alinear a la izquierda">⇤</button>
+          <button type="button" class="rich-btn" data-cmd="justifyCenter" title="Centrar">↔</button>
+          <button type="button" class="rich-btn" data-cmd="justifyRight" title="Alinear a la derecha">⇥</button>
+        </div>
+        <div class="edit-content rich-editor" contenteditable="true">${content}</div>
         <div class="edit-actions">
           <button type="button" class="btn btn-secondary btn-cancel-edit">Cancelar</button>
           <button type="button" class="btn btn-primary btn-save-edit">Guardar cambios</button>
@@ -800,13 +853,15 @@
       </div>
     `;
 
+    setupRichToolbar(item.querySelector(".edit-rich-toolbar"), item.querySelector(".edit-content"));
+
     item.querySelector(".btn-cancel-edit").addEventListener("click", () => loadNotes());
     item.querySelector(".btn-save-edit").addEventListener("click", async (e) => {
       const saveBtn = e.currentTarget;
       setLoading(saveBtn, "Guardando...");
 
       const newDate = item.querySelector(".edit-date").value;
-      const newContent = item.querySelector(".edit-content").value;
+      const newContent = item.querySelector(".edit-content").innerHTML;
 
       const { error } = await sb.from("session_notes").update({
         session_date: newDate,
@@ -826,13 +881,21 @@
     e.preventDefault();
     const btn = e.submitter;
     const msg = document.getElementById("note-message");
+    const noteContentEl = document.getElementById("note-content");
+
+    if (isRichTextEmpty(noteContentEl.innerHTML)) {
+      msg.textContent = "Escribí o dictá algo antes de guardar.";
+      msg.className = "form-message error";
+      return;
+    }
+
     setLoading(btn, "Guardando...");
 
     const { error } = await sb.from("session_notes").insert({
       patient_id: patientId,
       user_id: currentUserId,
       session_date: document.getElementById("note-date").value,
-      content: document.getElementById("note-content").value,
+      content: noteContentEl.innerHTML,
       attachments: noteAttachments,
     });
 
@@ -844,7 +907,7 @@
       return;
     }
 
-    document.getElementById("note-content").value = "";
+    noteContentEl.innerHTML = "";
     noteAttachments = [];
     renderNoteAttachments();
     msg.textContent = "Nota guardada.";
@@ -870,11 +933,11 @@
     return {
       patientName: document.getElementById("patient-name").textContent,
       diagnosis: document.getElementById("basic-diagnosis").value,
-      history: combineWithAttachments(document.getElementById("hist-text").value, historyAttachments),
-      considerations: combineWithAttachments(document.getElementById("considerations-text").value, considerationsAttachments),
+      history: combineWithAttachments(document.getElementById("hist-text").innerText, historyAttachments),
+      considerations: combineWithAttachments(document.getElementById("considerations-text").innerText, considerationsAttachments),
       notes: (allNotes || []).map((n) => ({
         session_date: n.session_date,
-        content: combineWithAttachments(n.content, n.attachments || []),
+        content: combineWithAttachments(htmlToPlainText(n.content), n.attachments || []),
       })),
       customTemplate: (templateRow && templateRow.template_text) || null,
       sectionOrder: sectionOrder,
@@ -984,6 +1047,10 @@
       throw err;
     }
     progress.finish();
+
+    if (!result.report || !result.report.trim()) {
+      throw new Error("La IA no generó contenido para el informe. Probá de nuevo.");
+    }
 
     document.getElementById("report-result-text").innerHTML = renderReportPreview(result.report);
     currentReportId = null;

@@ -185,16 +185,24 @@ ${FORMAT_CONVENTION}`;
 
     const message = await client.messages.create({
       model: "claude-sonnet-5",
-      max_tokens: 2000,
+      max_tokens: 4096,
       system: SYSTEM_PROMPT,
       messages: [{ role: "user", content: userPrompt }],
     });
 
     const textBlock = message.content.find((b) => b.type === "text");
+    const reportText = textBlock ? textBlock.text.trim() : "";
+
+    if (!reportText) {
+      return {
+        statusCode: 502,
+        body: JSON.stringify({ error: "La IA no generó contenido para el informe. Probá generarlo de nuevo." }),
+      };
+    }
 
     return {
       statusCode: 200,
-      body: JSON.stringify({ report: textBlock ? textBlock.text : "" }),
+      body: JSON.stringify({ report: reportText }),
     };
   } catch (err) {
     return {

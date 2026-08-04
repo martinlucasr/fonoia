@@ -114,6 +114,23 @@ p { margin: 0; }
 }
 .field textarea { resize: vertical; min-height: 90px; }
 
+/* Editor de texto enriquecido (negrita, cursiva, viñetas, alineación) */
+.rich-toolbar { display: flex; gap: 4px; margin-bottom: 6px; flex-wrap: wrap; }
+.rich-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 30px; height: 30px; background: var(--color-bg); border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm); font-size: 13px; color: var(--color-ink-soft); cursor: pointer;
+}
+.rich-btn:hover { border-color: var(--color-primary); color: var(--color-primary-dark); }
+.rich-editor {
+  width: 100%; min-height: 90px; padding: 11px 13px; border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm); font-family: inherit; font-size: 14.5px; background: var(--color-bg);
+  line-height: 1.5;
+}
+.rich-editor:focus { outline: none; border-color: var(--color-primary); box-shadow: 0 0 0 3px var(--color-primary-light); }
+.rich-editor:empty::before { content: attr(data-placeholder); color: var(--color-ink-soft); }
+.rich-editor ul { margin: 4px 0 4px 20px; padding: 0; }
+
 .form-message { font-size: 13.5px; font-weight: 600; margin-top: 14px; text-align: center; min-height: 18px; }
 .form-message.error { color: #C0392B; }
 .form-message.success { color: var(--color-primary-dark); }
