@@ -743,8 +743,7 @@
     const msg = document.getElementById("section-order-message");
     setLoading(btn, "Guardando...");
 
-    const { error } = await sb.from("report_templates").upsert({
-      user_id: currentUserId,
+    const { error } = await upsertByColumn("report_templates", "user_id", currentUserId, {
       section_order: sectionOrder,
       updated_at: new Date().toISOString(),
     });

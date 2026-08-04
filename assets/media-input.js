@@ -119,6 +119,18 @@ function setupFileImportButton(button, fileInput, onExtracted) {
   });
 }
 
+// Reemplazo de sb.from(table).upsert(...) para report_templates, cuyo upsert
+// viene fallando con "could not find the table" en el caché de esquema de
+// PostgREST (insert/update sueltos funcionan bien en otras tablas, así que
+// evitamos depender del on-conflict de upsert): hacemos select + update o insert.
+async function upsertByColumn(table, column, value, fields) {
+  const { data: existing } = await sb.from(table).select(column).eq(column, value).maybeSingle();
+  if (existing) {
+    return await sb.from(table).update(fields).eq(column, value);
+  }
+  return await sb.from(table).insert({ ...fields, [column]: value });
+}
+
 // Conecta los botones de un toolbar (negrita, cursiva, viñetas, alineación, etc.)
 // con el editor de texto enriquecido correspondiente. El pegado se fuerza a texto
 // plano para no arrastrar formato/HTML externo (ej. copiando desde Word).

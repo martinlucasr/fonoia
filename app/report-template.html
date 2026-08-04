@@ -120,8 +120,7 @@
 
     const text = document.getElementById("template-text").value.trim();
 
-    const { error } = await sb.from("report_templates").upsert({
-      user_id: currentUserId,
+    const { error } = await upsertByColumn("report_templates", "user_id", currentUserId, {
       template_text: text || null,
       updated_at: new Date().toISOString(),
     });
@@ -138,8 +137,7 @@
 
     document.getElementById("template-text").value = "";
 
-    const { error } = await sb.from("report_templates").upsert({
-      user_id: currentUserId,
+    const { error } = await upsertByColumn("report_templates", "user_id", currentUserId, {
       template_text: null,
       updated_at: new Date().toISOString(),
     });
