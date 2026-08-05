@@ -132,7 +132,13 @@ exports.handler = async (event) => {
       reportType,
       step,
       clarifications,
+      useFallbackModel,
     } = payload;
+
+    // Si Claude Sonnet 5 viene sobrecargado, el cliente nos puede pedir que usemos
+    // directamente un modelo de respaldo (más liviano, con más margen de capacidad)
+    // en vez de reintentar el mismo modelo que ya venía fallando.
+    const model = useFallbackModel ? "claude-haiku-4-5-20251001" : "claude-sonnet-5";
 
     if (reportType && reportType !== "evolucion") {
       return {
@@ -157,7 +163,7 @@ ${dataSummary}
 Antes de redactar el informe, evaluá si falta información relevante o si algo es ambiguo de una forma que afecte la calidad del informe. Si es así, generá como máximo 4 preguntas breves y concretas para el profesional, cada una con 2 a 4 opciones de respuesta plausibles y breves. Marcá cada pregunta como "required": true solo si es realmente indispensable para poder redactar el informe (esto debería ser poco frecuente); el resto marcalas "required": false, ya que el profesional va a poder omitirlas o escribir una respuesta propia en vez de elegir una opción. Si la información disponible ya es suficiente y clara, indicá que no hace falta preguntar nada.`;
 
       const askMessage = await createMessageWithRetry(client, {
-        model: "claude-sonnet-5",
+        model,
         max_tokens: 2048,
         system: SYSTEM_PROMPT,
         messages: [{ role: "user", content: askPrompt }],
@@ -201,7 +207,7 @@ ${structureInstructions}
 ${FORMAT_CONVENTION}`;
 
     const message = await createMessageWithRetry(client, {
-      model: "claude-sonnet-5",
+      model,
       max_tokens: 3000,
       system: SYSTEM_PROMPT,
       messages: [{ role: "user", content: userPrompt }],
@@ -219,7 +225,7 @@ ${FORMAT_CONVENTION}`;
 
     return {
       statusCode: 200,
-      body: JSON.stringify({ report: reportText }),
+      body: JSON.stringify({ report: reportText, usedFallbackModel: useFallbackModel || false }),
     };
   } catch (err) {
     const isOverloaded = err?.status === 529 || /overloaded/i.test(err?.message || "");
@@ -229,7 +235,7 @@ ${FORMAT_CONVENTION}`;
 
     return {
       statusCode: 502,
-      body: JSON.stringify({ error: friendlyMessage }),
+      body: JSON.stringify({ error: friendlyMessage, overloaded: isOverloaded }),
     };
   }
 };

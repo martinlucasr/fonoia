@@ -941,7 +941,23 @@
       customTemplate: (templateRow && templateRow.template_text) || null,
       sectionOrder: sectionOrder,
       reportType: document.getElementById("report-type").value,
+      useFallbackModel: shouldUseFallbackModel(),
     };
+  }
+
+  // Si a este mismo usuario ya le pasó un error de sobrecarga de la IA en los
+  // últimos 10 minutos, usamos directamente un modelo de respaldo en el próximo
+  // intento en vez de volver a probar el mismo modelo que venía fallando.
+  const OVERLOAD_STORAGE_KEY = "fonoia_last_overload_ts";
+  const OVERLOAD_WINDOW_MS = 10 * 60 * 1000;
+
+  function shouldUseFallbackModel() {
+    const lastOverload = Number(localStorage.getItem(OVERLOAD_STORAGE_KEY));
+    return Boolean(lastOverload) && Date.now() - lastOverload < OVERLOAD_WINDOW_MS;
+  }
+
+  function recordOverload() {
+    localStorage.setItem(OVERLOAD_STORAGE_KEY, String(Date.now()));
   }
 
   async function callGenerateReport(body) {
@@ -963,7 +979,10 @@
     } catch {
       throw new Error("El informe tardó demasiado en generarse y el servidor cortó la respuesta. Probá de nuevo — si es un informe muy largo o con plantilla/índice personalizados, puede tardar más.");
     }
-    if (!response.ok) throw new Error(result.error || "Error al generar el informe");
+    if (!response.ok) {
+      if (result.overloaded) recordOverload();
+      throw new Error(result.error || "Error al generar el informe");
+    }
     return result;
   }
 
@@ -1062,6 +1081,14 @@
     const resultCard = document.getElementById("report-result-card");
     resultCard.style.display = "block";
     resultCard.scrollIntoView({ behavior: "smooth", block: "start" });
+
+    const msg = document.getElementById("report-message");
+    if (result.usedFallbackModel) {
+      msg.textContent = "Generado con un modelo de respaldo porque la IA principal estaba sobrecargada — revisalo con un poco más de atención.";
+      msg.className = "form-message";
+    } else {
+      msg.textContent = "";
+    }
   }
 
   function renderClarificationQuestions(questions, basePayload) {
