@@ -3,14 +3,16 @@ const Anthropic = AnthropicModule.default || AnthropicModule;
 
 // Un 529 "overloaded_error" es la API de Anthropic avisando que está saturada
 // momentáneamente — no es un error nuestro, y normalmente se resuelve reintentando.
-async function createMessageWithRetry(client, params, retries = 2) {
+// Backoff creciente (2s, 4s, 6s ≈ 12s en total) para darle más margen a que se
+// destrabe, sin pasarnos del tiempo límite de la función de Netlify.
+async function createMessageWithRetry(client, params, attempt = 0, maxAttempts = 3) {
   try {
     return await client.messages.create(params);
   } catch (err) {
     const isOverloaded = err?.status === 529 || /overloaded/i.test(err?.message || "");
-    if (isOverloaded && retries > 0) {
-      await new Promise((resolve) => setTimeout(resolve, 1500));
-      return createMessageWithRetry(client, params, retries - 1);
+    if (isOverloaded && attempt < maxAttempts) {
+      await new Promise((resolve) => setTimeout(resolve, (attempt + 1) * 2000));
+      return createMessageWithRetry(client, params, attempt + 1, maxAttempts);
     }
     throw err;
   }
