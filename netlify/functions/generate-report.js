@@ -1,6 +1,21 @@
 const AnthropicModule = require("@anthropic-ai/sdk");
 const Anthropic = AnthropicModule.default || AnthropicModule;
 
+// Un 529 "overloaded_error" es la API de Anthropic avisando que está saturada
+// momentáneamente — no es un error nuestro, y normalmente se resuelve reintentando.
+async function createMessageWithRetry(client, params, retries = 2) {
+  try {
+    return await client.messages.create(params);
+  } catch (err) {
+    const isOverloaded = err?.status === 529 || /overloaded/i.test(err?.message || "");
+    if (isOverloaded && retries > 0) {
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+      return createMessageWithRetry(client, params, retries - 1);
+    }
+    throw err;
+  }
+}
+
 const SYSTEM_PROMPT = `Sos un asistente que ayuda a fonoaudiólogos independientes a redactar informes de evolución clínica en español, con tono profesional y clínico apropiado para uso en la práctica privada.
 
 Reglas importantes:
@@ -139,7 +154,7 @@ ${dataSummary}
 
 Antes de redactar el informe, evaluá si falta información relevante o si algo es ambiguo de una forma que afecte la calidad del informe. Si es así, generá como máximo 4 preguntas breves y concretas para el profesional, cada una con 2 a 4 opciones de respuesta plausibles y breves. Marcá cada pregunta como "required": true solo si es realmente indispensable para poder redactar el informe (esto debería ser poco frecuente); el resto marcalas "required": false, ya que el profesional va a poder omitirlas o escribir una respuesta propia en vez de elegir una opción. Si la información disponible ya es suficiente y clara, indicá que no hace falta preguntar nada.`;
 
-      const askMessage = await client.messages.create({
+      const askMessage = await createMessageWithRetry(client, {
         model: "claude-sonnet-5",
         max_tokens: 2048,
         system: SYSTEM_PROMPT,
@@ -183,7 +198,7 @@ ${structureInstructions}
 
 ${FORMAT_CONVENTION}`;
 
-    const message = await client.messages.create({
+    const message = await createMessageWithRetry(client, {
       model: "claude-sonnet-5",
       max_tokens: 3000,
       system: SYSTEM_PROMPT,
@@ -205,9 +220,14 @@ ${FORMAT_CONVENTION}`;
       body: JSON.stringify({ report: reportText }),
     };
   } catch (err) {
+    const isOverloaded = err?.status === 529 || /overloaded/i.test(err?.message || "");
+    const friendlyMessage = isOverloaded
+      ? "La IA de Anthropic está sobrecargada en este momento (no es un problema de la app). Esperá un minuto y probá de nuevo."
+      : "Error al generar el informe: " + err.message;
+
     return {
       statusCode: 502,
-      body: JSON.stringify({ error: "Error al generar el informe: " + err.message }),
+      body: JSON.stringify({ error: friendlyMessage }),
     };
   }
 };
