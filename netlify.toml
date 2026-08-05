@@ -6,3 +6,9 @@
   # cliente, protegidas por Row Level Security) — el escaneo de secretos de Netlify
   # las marca como falso positivo porque aparecen en assets/supabase-config.js.
   SECRETS_SCAN_OMIT_KEYS = "SUPABASE_URL,SUPABASE_ANON_KEY"
+
+# La generación de informes puede tardar más que el límite por defecto (10s) en
+# reportes largos o con plantilla/índice personalizados. Si el plan de Netlify no
+# permite subir esto, simplemente lo ignora/limita — no rompe nada dejarlo puesto.
+[functions."generate-report"]
+  timeout = 26

@@ -957,7 +957,12 @@
       body: JSON.stringify(body),
     });
 
-    const result = await response.json();
+    let result;
+    try {
+      result = await response.json();
+    } catch {
+      throw new Error("El informe tardó demasiado en generarse y el servidor cortó la respuesta. Probá de nuevo — si es un informe muy largo o con plantilla/índice personalizados, puede tardar más.");
+    }
     if (!response.ok) throw new Error(result.error || "Error al generar el informe");
     return result;
   }

@@ -185,7 +185,7 @@ ${FORMAT_CONVENTION}`;
 
     const message = await client.messages.create({
       model: "claude-sonnet-5",
-      max_tokens: 4096,
+      max_tokens: 3000,
       system: SYSTEM_PROMPT,
       messages: [{ role: "user", content: userPrompt }],
     });
