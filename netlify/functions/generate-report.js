@@ -1,24 +1,52 @@
 const AnthropicModule = require("@anthropic-ai/sdk");
 const Anthropic = AnthropicModule.default || AnthropicModule;
 
-// Un 529 "overloaded_error" es la API de Anthropic avisando que está saturada
-// momentáneamente — no es un error nuestro, y normalmente se resuelve reintentando.
-// Netlify mata la función a los ~30s sin importar qué esté haciendo (confirmado:
-// una invocación real quedó cortada en exactamente 30000ms), así que el reintento
-// tiene que respetar cuánto tiempo real queda — si no alcanza para otro intento
-// completo, mejor devolver un error ahora que quedar colgados hasta que nos maten.
-async function createMessageWithRetry(client, params, deadline, attempt = 0) {
+// Dos problemas distintos de Anthropic, dos mitigaciones distintas:
+// 1. Rechazo explícito (529 "overloaded_error"): reintentamos con backoff, pero
+//    solo si queda tiempo real antes de que Netlify mate la función (~30s duros,
+//    confirmado con logs reales — una invocación quedó cortada en 30000ms exactos).
+// 2. Sin rechazo, pero respondiendo muy lento (confirmado también con logs: una
+//    llamada exitosa tardó ~19-21s solo para el paso de preguntas): le ponemos un
+//    límite de tiempo a cada intento con AbortController, y si se pasa, abandonamos
+//    esa llamada y probamos directo con el modelo de respaldo (más rápido) en vez
+//    de seguir esperando a que Netlify nos mate.
+// Devuelve { result, modelUsed } para que el llamador sepa qué modelo respondió
+// realmente, más allá de cuál se pidió al principio.
+async function createMessageSafely(client, params, deadline, attempt = 0) {
+  const timeLeft = deadline - Date.now();
+  if (timeLeft <= 3000) {
+    throw new Error("No quedó tiempo suficiente para generar la respuesta.");
+  }
+
+  const perAttemptTimeout = Math.min(14000, timeLeft - 1000);
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), perAttemptTimeout);
+
   try {
-    return await client.messages.create(params);
+    const result = await client.messages.create(params, { signal: controller.signal });
+    clearTimeout(timer);
+    return { result, modelUsed: params.model };
   } catch (err) {
-    const isOverloaded = err?.status === 529 || /overloaded/i.test(err?.message || "");
-    const delay = Math.min(2000 * (attempt + 1), 6000);
-    // Dejamos margen para la espera + un intento más (estimado ~8s) antes de darnos por vencidos.
-    const enoughTimeLeft = deadline - Date.now() > delay + 8000;
-    if (isOverloaded && enoughTimeLeft) {
-      await new Promise((resolve) => setTimeout(resolve, delay));
-      return createMessageWithRetry(client, params, deadline, attempt + 1);
+    clearTimeout(timer);
+
+    const isAbort = err?.name === "AbortError" || controller.signal.aborted;
+    if (isAbort) {
+      if (params.model !== "claude-haiku-4-5-20251001") {
+        return createMessageSafely(client, { ...params, model: "claude-haiku-4-5-20251001" }, deadline, attempt + 1);
+      }
+      throw new Error("La IA está tardando demasiado en responder. Probá de nuevo en un momento.");
     }
+
+    const isOverloaded = err?.status === 529 || /overloaded/i.test(err?.message || "");
+    if (isOverloaded) {
+      const delay = Math.min(2000 * (attempt + 1), 6000);
+      // Dejamos margen para la espera + un intento más antes de darnos por vencidos.
+      if (deadline - Date.now() > delay + 8000) {
+        await new Promise((resolve) => setTimeout(resolve, delay));
+        return createMessageSafely(client, params, deadline, attempt + 1);
+      }
+    }
+
     throw err;
   }
 }
@@ -203,7 +231,7 @@ ${dataSummary}
 
 Antes de redactar el informe, evaluá si falta información relevante o si algo es ambiguo de una forma que afecte la calidad del informe. Si es así, generá como máximo 4 preguntas breves y concretas para el profesional, cada una con 2 a 4 opciones de respuesta plausibles y breves. Marcá cada pregunta como "required": true solo si es realmente indispensable para poder redactar el informe (esto debería ser poco frecuente); el resto marcalas "required": false, ya que el profesional va a poder omitirlas o escribir una respuesta propia en vez de elegir una opción. Si la información disponible ya es suficiente y clara, indicá que no hace falta preguntar nada.`;
 
-      const askMessage = await createMessageWithRetry(client, {
+      const { result: askMessage } = await createMessageSafely(client, {
         model,
         max_tokens: 2048,
         system: buildSystemPrompt(profession),
@@ -247,7 +275,7 @@ ${structureInstructions}
 
 ${FORMAT_CONVENTION}`;
 
-    const message = await createMessageWithRetry(client, {
+    const { result: message, modelUsed } = await createMessageSafely(client, {
       model,
       max_tokens: 3000,
       system: buildSystemPrompt(profession),
@@ -266,7 +294,7 @@ ${FORMAT_CONVENTION}`;
 
     return {
       statusCode: 200,
-      body: JSON.stringify({ report: reportText, usedFallbackModel: useFallbackModel || false }),
+      body: JSON.stringify({ report: reportText, usedFallbackModel: modelUsed === "claude-haiku-4-5-20251001" }),
     };
   } catch (err) {
     // Log completo para poder revisar en los logs de Netlify (Functions → generate-report)
