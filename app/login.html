@@ -111,7 +111,7 @@
     const email = document.getElementById("login-email").value;
     const password = document.getElementById("login-password").value;
 
-    const { error } = await sb.auth.signInWithPassword({ email, password });
+    const { data, error } = await sb.auth.signInWithPassword({ email, password });
     if (error) {
       clearLoading(btn);
       msg.textContent = error.message === "Invalid login credentials"
@@ -120,6 +120,7 @@
       msg.classList.add("error");
       return;
     }
+    await sb.from("login_events").insert({ user_id: data.user.id });
     window.location.href = "dashboard.html";
   });
 
@@ -152,6 +153,7 @@
     }
 
     if (data.session) {
+      await sb.from("login_events").insert({ user_id: data.user.id });
       window.location.href = "dashboard.html";
     } else {
       clearLoading(btn);

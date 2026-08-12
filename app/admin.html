@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Panel de owner — FonoIA</title>
+<link rel="stylesheet" href="../assets/app.css" />
+<style>
+  .admin-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 14px; margin-bottom: 24px; }
+  .admin-card { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: 18px; }
+  .admin-card .num { font-size: 26px; font-weight: 700; color: var(--color-primary-dark); }
+  .admin-card .label { font-size: 12.5px; color: var(--color-ink-soft); margin-top: 4px; }
+  .admin-table-wrap { overflow-x: auto; }
+  table.admin-table { width: 100%; border-collapse: collapse; font-size: 13px; white-space: nowrap; }
+  table.admin-table th, table.admin-table td { padding: 8px 12px; border-bottom: 1px solid var(--color-border); text-align: left; }
+  table.admin-table th { background: var(--color-bg); font-weight: 600; color: var(--color-ink-soft); position: sticky; top: 0; }
+  .status-pill { display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 11.5px; font-weight: 600; }
+  .status-pill.confirmed { background: #E3F3EF; color: var(--color-primary-dark); }
+  .status-pill.pending { background: #FDF0EE; color: #C0392B; }
+</style>
+</head>
+<body>
+
+<header class="app-header">
+  <div class="app-header-inner">
+    <a href="dashboard.html" class="app-logo">
+      <span class="mark">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+      </span>
+      FonoIA
+    </a>
+    <div class="app-user">
+      <span id="user-display-name"></span>
+      <button class="btn btn-secondary" id="btn-logout">Cerrar sesión</button>
+    </div>
+  </div>
+</header>
+
+<main class="app-main">
+  <div id="loading" class="loading-state"><span class="spinner"></span>Cargando estadísticas...</div>
+  <div id="denied" class="empty-state" style="display:none"></div>
+
+  <div id="content" style="display:none">
+    <div class="app-main-header">
+      <h1>Panel de owner</h1>
+      <button type="button" class="btn btn-secondary" id="btn-refresh">↻ Actualizar</button>
+    </div>
+
+    <div class="admin-cards" id="summary-cards"></div>
+
+    <div class="card admin-table-wrap">
+      <table class="admin-table">
+        <thead>
+          <tr>
+            <th>Nombre</th>
+            <th>Email</th>
+            <th>Profesión</th>
+            <th>Estado</th>
+            <th>Alta</th>
+            <th>Último login</th>
+            <th>Logins (7d / 30d)</th>
+            <th>Pacientes</th>
+            <th>Notas</th>
+            <th>Informes</th>
+            <th>Errores IA</th>
+          </tr>
+        </thead>
+        <tbody id="users-table-body"></tbody>
+      </table>
+    </div>
+  </div>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="../assets/supabase-config.js"></script>
+<script src="../assets/app-auth.js"></script>
+<script>
+  (async () => {
+    const session = await requireSession();
+    if (!session) return;
+    document.getElementById("user-display-name").textContent = session.user.user_metadata?.full_name || session.user.email;
+
+    await loadStats();
+  })();
+
+  document.getElementById("btn-logout").addEventListener("click", signOut);
+  document.getElementById("btn-refresh").addEventListener("click", loadStats);
+
+  const PROFESSION_LABELS = {
+    fonoaudiologia: "Fonoaudiología",
+    psicomotricidad: "Psicomotricidad",
+  };
+
+  async function loadStats() {
+    document.getElementById("loading").style.display = "block";
+    document.getElementById("denied").style.display = "none";
+    document.getElementById("content").style.display = "none";
+
+    try {
+      const { data: { session } } = await sb.auth.getSession();
+      if (!session) throw new Error("Sesión expirada, volvé a iniciar sesión.");
+
+      const response = await fetch("/.netlify/functions/admin-stats", {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+      const result = await response.json();
+
+      if (response.status === 403) {
+        document.getElementById("loading").style.display = "none";
+        document.getElementById("denied").textContent = "No tenés acceso a este panel.";
+        document.getElementById("denied").style.display = "block";
+        return;
+      }
+      if (!response.ok) throw new Error(result.error || "Error al cargar estadísticas");
+
+      renderStats(result.users || []);
+      document.getElementById("loading").style.display = "none";
+      document.getElementById("content").style.display = "block";
+    } catch (err) {
+      document.getElementById("loading").style.display = "none";
+      document.getElementById("denied").textContent = "Error: " + err.message;
+      document.getElementById("denied").style.display = "block";
+    }
+  }
+
+  function renderStats(users) {
+    const total = users.length;
+    const byProfession = {};
+    let confirmed = 0;
+    let active7d = 0;
+    let active30d = 0;
+
+    users.forEach((u) => {
+      const prof = u.profession || "sin especificar";
+      byProfession[prof] = (byProfession[prof] || 0) + 1;
+      if (u.confirmed_at) confirmed++;
+      if (u.login_count_7d > 0) active7d++;
+      if (u.login_count_30d > 0) active30d++;
+    });
+
+    const cards = [
+      { num: total, label: "Usuarios totales" },
+      { num: byProfession.fonoaudiologia || 0, label: "Fonoaudiología" },
+      { num: byProfession.psicomotricidad || 0, label: "Psicomotricidad" },
+      { num: confirmed, label: "Cuentas confirmadas" },
+      { num: total - confirmed, label: "Esperando confirmación" },
+      { num: active7d, label: "Activos últimos 7 días" },
+      { num: active30d, label: "Activos últimos 30 días" },
+    ];
+
+    document.getElementById("summary-cards").innerHTML = cards.map((c) => `
+      <div class="admin-card">
+        <div class="num">${c.num}</div>
+        <div class="label">${escapeHtml(c.label)}</div>
+      </div>
+    `).join("");
+
+    document.getElementById("users-table-body").innerHTML = users.map((u) => `
+      <tr>
+        <td>${escapeHtml(u.full_name || "—")}</td>
+        <td>${escapeHtml(u.email || "—")}</td>
+        <td>${escapeHtml(PROFESSION_LABELS[u.profession] || u.profession || "—")}</td>
+        <td>${u.confirmed_at
+          ? '<span class="status-pill confirmed">Confirmada</span>'
+          : '<span class="status-pill pending">Pendiente</span>'}</td>
+        <td>${formatDateTime(u.created_at)}</td>
+        <td>${u.last_sign_in_at ? formatDateTime(u.last_sign_in_at) : "Nunca"}</td>
+        <td>${u.login_count_7d} / ${u.login_count_30d}</td>
+        <td>${u.patients_count}</td>
+        <td>${u.notes_count}</td>
+        <td>${u.reports_count}</td>
+        <td>${u.reports_error_count}</td>
+      </tr>
+    `).join("");
+  }
+
+  function escapeHtml(str) {
+    const div = document.createElement("div");
+    div.textContent = str;
+    return div.innerHTML;
+  }
+
+  function formatDateTime(isoString) {
+    const date = new Date(isoString);
+    const datePart = date.toLocaleDateString("es-UY");
+    const timePart = date.toLocaleTimeString("es-UY", { hour: "2-digit", minute: "2-digit" });
+    return `${datePart} ${timePart}`;
+  }
+</script>
+</body>
+</html>
