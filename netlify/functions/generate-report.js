@@ -260,10 +260,15 @@ ${FORMAT_CONVENTION}`;
       body: JSON.stringify({ report: reportText, usedFallbackModel: useFallbackModel || false }),
     };
   } catch (err) {
+    // Log completo para poder revisar en los logs de Netlify (Functions → generate-report)
+    // cuando el mensaje que le llega al usuario no alcanza para diagnosticar.
+    console.error("generate-report error:", err && err.stack ? err.stack : err);
+
     const isOverloaded = err?.status === 529 || /overloaded/i.test(err?.message || "");
+    const detail = (err && err.message) || (err && err.name) || (err ? String(err) : "Error desconocido");
     const friendlyMessage = isOverloaded
       ? "La IA de Anthropic está sobrecargada en este momento (no es un problema de la app). Esperá un minuto y probá de nuevo."
-      : "Error al generar el informe: " + err.message;
+      : "Error al generar el informe: " + detail;
 
     return {
       statusCode: 502,
