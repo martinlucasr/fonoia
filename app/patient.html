@@ -31,6 +31,7 @@
     <div class="app-main-header">
       <h1 id="patient-name">—</h1>
       <div class="header-actions">
+        <button type="button" class="btn-corner" id="btn-show-main">📝 Sesiones</button>
         <button type="button" class="btn-corner" id="btn-open-history">📋 Historia clínica</button>
         <button type="button" class="btn-corner" id="btn-toggle-reports-section">📄 Informes</button>
       </div>
@@ -391,16 +392,17 @@
     document.getElementById("main-view").style.display = view === "main" ? "block" : "none";
     document.getElementById("history-section").style.display = view === "historia" ? "flex" : "none";
     document.getElementById("reports-section").style.display = view === "informes" ? "flex" : "none";
+
+    document.getElementById("btn-show-main").classList.toggle("active", view === "main");
+    document.getElementById("btn-open-history").classList.toggle("active", view === "historia");
+    document.getElementById("btn-toggle-reports-section").classList.toggle("active", view === "informes");
+
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
-  document.getElementById("btn-open-history").addEventListener("click", () => {
-    showView(currentView === "historia" ? "main" : "historia");
-  });
-
-  document.getElementById("btn-toggle-reports-section").addEventListener("click", () => {
-    showView(currentView === "informes" ? "main" : "informes");
-  });
+  document.getElementById("btn-show-main").addEventListener("click", () => showView("main"));
+  document.getElementById("btn-open-history").addEventListener("click", () => showView("historia"));
+  document.getElementById("btn-toggle-reports-section").addEventListener("click", () => showView("informes"));
 
   async function loadPatient() {
     const { data, error } = await sb.from("patients").select("*").eq("id", patientId).single();
@@ -425,6 +427,8 @@
 
     renderHistoryDisplay(data.history);
     renderConsiderationsDisplay(data.report_considerations);
+
+    showView("main");
 
     // Si todavía no hay nada anotado, abrir directo en modo edición — no tiene
     // sentido mostrar una vista de lectura vacía.
