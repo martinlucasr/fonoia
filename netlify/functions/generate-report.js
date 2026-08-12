@@ -18,12 +18,37 @@ async function createMessageWithRetry(client, params, attempt = 0, maxAttempts =
   }
 }
 
-const SYSTEM_PROMPT = `Sos un asistente que ayuda a fonoaudiólogos independientes a redactar informes de evolución clínica en español, con tono profesional y clínico apropiado para uso en la práctica privada.
+// Única fuente de verdad para todo lo que distingue una profesión de otra.
+// Si en el futuro se agrega una profesión nueva, alcanza con sumar una entrada
+// acá — nada del resto de la app (ni siquiera el resto de este archivo) necesita
+// saber qué profesiones existen.
+const PROFESSION_CONFIG = {
+  fonoaudiologia: {
+    roleLabel: "fonoaudiólogos",
+    reportTitle: "INFORME DE EVOLUCIÓN FONOAUDIOLÓGICO",
+    evaluationAreas: "áreas evaluadas (lenguaje, habla, voz, audición, deglución, según corresponda), instrumentos o pruebas utilizadas, resultados relevantes",
+  },
+  psicomotricidad: {
+    roleLabel: "psicomotricistas",
+    reportTitle: "INFORME DE EVOLUCIÓN PSICOMOTRIZ",
+    evaluationAreas: "áreas evaluadas (esquema corporal, lateralidad, equilibrio, coordinación dinámica general y óculo-manual/podal, organización espacio-temporal, tono muscular, praxias, motricidad fina y gruesa, según corresponda), instrumentos o pruebas utilizadas, resultados relevantes",
+  },
+};
+const DEFAULT_PROFESSION = "fonoaudiologia";
+
+function getProfessionConfig(profession) {
+  return PROFESSION_CONFIG[profession] || PROFESSION_CONFIG[DEFAULT_PROFESSION];
+}
+
+function buildSystemPrompt(profession) {
+  const cfg = getProfessionConfig(profession);
+  return `Sos un asistente que ayuda a ${cfg.roleLabel} independientes a redactar informes de evolución clínica en español, con tono profesional y clínico apropiado para uso en la práctica privada.
 
 Reglas importantes:
 - Nunca inventes información que no esté en los datos provistos.
 - Si falta un dato relevante para completar una sección, indicalo explícitamente (por ejemplo "no se cuenta con información registrada sobre...") en lugar de completarlo con supuestos.
 - Escribí en español, con redacción clínica clara y profesional, sin tecnicismos innecesarios ni relleno.`;
+}
 
 const DEFAULT_SECTIONS = [
   "Encabezado (lugar y fecha)",
@@ -38,18 +63,21 @@ const DEFAULT_SECTIONS = [
   "Firma del profesional",
 ];
 
-const DEFAULT_STRUCTURE = `Estructurá el informe con estas secciones, en este orden (formato estándar de informe de evolución fonoaudiológico):
+function buildDefaultStructure(profession) {
+  const cfg = getProfessionConfig(profession);
+  return `Estructurá el informe con estas secciones, en este orden (formato estándar de informe de evolución):
 
-1. Encabezado: lugar y fecha, y título "INFORME DE EVOLUCIÓN FONOAUDIOLÓGICO"
+1. Encabezado: lugar y fecha, y título "${cfg.reportTitle}"
 2. Datos del paciente: nombre, fecha de nacimiento, edad cronológica, escolarización (si corresponde)
 3. Motivo de consulta / derivado por
 4. ANTECEDENTES PERSONALES: antecedentes prenatales, perinatales y postnatales relevantes; hitos del desarrollo (lenguaje, motricidad, alimentación, audición); antecedentes familiares o médicos relevantes — según lo que surja de la historia clínica
 5. PRESENTACIÓN: descripción breve del paciente (actitud, disposición, colaboración, interés en la tarea, rasgos comunicativos generales) — según lo que surja de las notas de sesión
-6. EVALUACIÓN: áreas evaluadas (lenguaje, habla, voz, audición, deglución, según corresponda), instrumentos o pruebas utilizadas, resultados relevantes
+6. EVALUACIÓN: ${cfg.evaluationAreas}
 7. EVOLUCIÓN: integrá el proceso completo de trabajo en un relato único e integrado del progreso del paciente — NO hagas un repaso sesión por sesión ni menciones fechas puntuales de sesiones en este capítulo. Podés mencionar el tipo de trabajo realizado a lo largo del proceso (por ejemplo, en qué áreas se trabajó), pero como parte del relato general de la evolución, no como una lista cronológica. Incluí respuesta al tratamiento, avances logrados, dificultades persistentes y objetivos cumplidos. Si hay puntos que quedan pendientes o a continuar trabajando, integralos como parte del relato de la evolución (no como una lista aparte al final del capítulo)
 8. EN SUMA: conclusión general sobre el estado actual del paciente, comparando con el inicio del proceso
 9. SUGERENCIAS: recomendaciones para la familia, escuela u otros profesionales; indicar continuidad del tratamiento o derivación si corresponde
 10. Firma del profesional`;
+}
 
 const FORMAT_CONVENTION = `Convenciones de formato del texto (importante, se usa para previsualizar el informe como un documento):
 - La primera línea del informe tiene que ser el lugar y la fecha (por ejemplo "Montevideo, 15 de julio de 2026."), sin nada antes.
@@ -113,6 +141,10 @@ exports.handler = async (event) => {
     if (!userResp.ok) {
       return { statusCode: 401, body: JSON.stringify({ error: "Sesión inválida" }) };
     }
+    // La profesión viene del usuario verificado por Supabase, no del payload del
+    // cliente — así no se puede falsear, y es el único punto donde se lee.
+    const userData = await userResp.json();
+    const profession = userData?.user_metadata?.profession;
 
     let payload;
     try {
@@ -156,7 +188,7 @@ exports.handler = async (event) => {
 
     // ---------- Paso 1: detectar si hace falta preguntar algo ----------
     if (step === "ask") {
-      const askPrompt = `Estos son los datos disponibles para redactar un informe de evolución fonoaudiológica:
+      const askPrompt = `Estos son los datos disponibles para redactar un informe de evolución clínica:
 
 ${dataSummary}
 
@@ -165,7 +197,7 @@ Antes de redactar el informe, evaluá si falta información relevante o si algo 
       const askMessage = await createMessageWithRetry(client, {
         model,
         max_tokens: 2048,
-        system: SYSTEM_PROMPT,
+        system: buildSystemPrompt(profession),
         messages: [{ role: "user", content: askPrompt }],
         output_config: { format: { type: "json_schema", schema: QUESTIONS_SCHEMA } },
       });
@@ -188,14 +220,14 @@ ${customTemplate}
       structureInstructions = `Estructurá el informe siguiendo este índice de secciones, en este orden (el índice es solo una guía de organización interna para vos — no debe aparecer como lista ni mencionarse como "índice" en el informe final):
 ${sectionOrder.map((s, i) => `${i + 1}. ${s}`).join("\n")}`;
     } else {
-      structureInstructions = DEFAULT_STRUCTURE;
+      structureInstructions = buildDefaultStructure(profession);
     }
 
     const clarificationsText = (clarifications || [])
       .map((c) => `- ${c.question} → ${c.answer}`)
       .join("\n");
 
-    const userPrompt = `Redactá un informe de evolución fonoaudiológica a partir de estos datos.
+    const userPrompt = `Redactá un informe de evolución clínica a partir de estos datos.
 
 ${dataSummary}
 
@@ -209,7 +241,7 @@ ${FORMAT_CONVENTION}`;
     const message = await createMessageWithRetry(client, {
       model,
       max_tokens: 3000,
-      system: SYSTEM_PROMPT,
+      system: buildSystemPrompt(profession),
       messages: [{ role: "user", content: userPrompt }],
     });
 

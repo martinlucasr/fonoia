@@ -51,6 +51,13 @@
         <input type="text" id="signup-lastname" required />
       </div>
       <div class="field">
+        <label for="signup-profession">Profesión</label>
+        <select id="signup-profession" required>
+          <option value="fonoaudiologia" selected>Fonoaudiología</option>
+          <option value="psicomotricidad">Psicomotricidad</option>
+        </select>
+      </div>
+      <div class="field">
         <label for="signup-email">Email</label>
         <input type="email" id="signup-email" required />
       </div>
@@ -127,13 +134,14 @@
     const name = document.getElementById("signup-name").value;
     const lastname = document.getElementById("signup-lastname").value;
     const fullName = `${name} ${lastname}`.trim();
+    const profession = document.getElementById("signup-profession").value;
     const email = document.getElementById("signup-email").value;
     const password = document.getElementById("signup-password").value;
 
     const { data, error } = await sb.auth.signUp({
       email,
       password,
-      options: { data: { full_name: fullName } },
+      options: { data: { full_name: fullName, profession } },
     });
 
     if (error) {
