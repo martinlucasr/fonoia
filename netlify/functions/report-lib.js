@@ -3,23 +3,32 @@
 // hasta 15 minutos). Nada de esto sabe ni le importa desde qué función se llama.
 
 // Dos problemas distintos de Anthropic, dos mitigaciones distintas:
-// 1. Rechazo explícito (529 "overloaded_error"): reintentamos con backoff, pero
-//    solo si queda tiempo real antes del "deadline" que nos pasa el llamador.
+// 1. Rechazo explícito (529 "overloaded_error"): reintentamos con backoff.
 // 2. Sin rechazo, pero respondiendo muy lento (confirmado con logs reales: una
 //    llamada exitosa tardó ~19-21s solo para el paso de preguntas, y otra quedó
 //    cortada en exactamente 30000ms por el límite duro de Netlify): le ponemos un
-//    límite de tiempo a cada intento con AbortController, y si se pasa, abandonamos
-//    esa llamada y probamos directo con el modelo de respaldo (más rápido) en vez
-//    de seguir esperando indefinidamente.
+//    límite de tiempo a cada intento con AbortController y probamos con el modelo
+//    de respaldo (más rápido) si se pasa.
+// En ambos casos, seguimos reintentando MIENTRAS QUEDE TIEMPO REAL antes del
+// "deadline" que nos pasa el llamador — no un número fijo de intentos. Esto
+// importa porque esta misma función se usa tanto para el paso corto y síncrono
+// de preguntas (~24s de margen) como para la generación real en segundo plano
+// (~13 minutos de margen): con un límite fijo de "probar 2 veces y rendirse",
+// la función de fondo tiraba la toalla a los ~22s sin aprovechar los minutos
+// de margen que sí tenía disponibles.
 // Devuelve { result, modelUsed } para que el llamador sepa qué modelo respondió
 // realmente, más allá de cuál se pidió al principio.
 async function createMessageSafely(client, params, deadline, attempt = 0) {
   const timeLeft = deadline - Date.now();
-  if (timeLeft <= 3000) {
+  if (timeLeft <= 5000) {
     throw new Error("No quedó tiempo suficiente para generar la respuesta.");
   }
 
-  const perAttemptTimeout = Math.min(14000, timeLeft - 1000);
+  // Los primeros intentos son más impacientes (no perder mucho tiempo si el
+  // modelo está momentáneamente lento); si ya vamos por varios intentos y
+  // seguimos con tiempo de sobra, le damos más margen por intento en vez de
+  // seguir abortando cada vez más rápido de lo razonable.
+  const perAttemptTimeout = Math.min(attempt < 2 ? 14000 : 30000, timeLeft - 2000);
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), perAttemptTimeout);
 
@@ -31,24 +40,31 @@ async function createMessageSafely(client, params, deadline, attempt = 0) {
     clearTimeout(timer);
 
     const isAbort = err?.name === "AbortError" || controller.signal.aborted;
-    if (isAbort) {
-      if (params.model !== "claude-haiku-4-5-20251001") {
-        return createMessageSafely(client, { ...params, model: "claude-haiku-4-5-20251001" }, deadline, attempt + 1);
-      }
-      throw new Error("La IA está tardando demasiado en responder. Probá de nuevo en un momento.");
-    }
-
     const isOverloaded = err?.status === 529 || /overloaded/i.test(err?.message || "");
-    if (isOverloaded) {
-      const delay = Math.min(2000 * (attempt + 1), 6000);
-      // Dejamos margen para la espera + un intento más antes de darnos por vencidos.
-      if (deadline - Date.now() > delay + 8000) {
-        await new Promise((resolve) => setTimeout(resolve, delay));
-        return createMessageSafely(client, params, deadline, attempt + 1);
-      }
+
+    if (!isAbort && !isOverloaded) {
+      throw err;
     }
 
-    throw err;
+    const remaining = deadline - Date.now();
+    if (remaining <= 8000) {
+      throw isAbort
+        ? new Error("La IA está tardando demasiado en responder. Probá de nuevo en un momento.")
+        : err;
+    }
+
+    // La primera vez que se traba probamos el modelo de respaldo (más rápido);
+    // de ahí en más, seguimos con ese mismo modelo mientras quede tiempo.
+    const nextModel = isAbort && params.model !== "claude-haiku-4-5-20251001"
+      ? "claude-haiku-4-5-20251001"
+      : params.model;
+
+    if (isOverloaded) {
+      const delay = Math.min(2000 * (attempt + 1), 15000);
+      await new Promise((resolve) => setTimeout(resolve, delay));
+    }
+
+    return createMessageSafely(client, { ...params, model: nextModel }, deadline, attempt + 1);
   }
 }
 
