@@ -3,16 +3,21 @@ const Anthropic = AnthropicModule.default || AnthropicModule;
 
 // Un 529 "overloaded_error" es la API de Anthropic avisando que está saturada
 // momentáneamente — no es un error nuestro, y normalmente se resuelve reintentando.
-// Backoff creciente (2s, 4s, 6s ≈ 12s en total) para darle más margen a que se
-// destrabe, sin pasarnos del tiempo límite de la función de Netlify.
-async function createMessageWithRetry(client, params, attempt = 0, maxAttempts = 3) {
+// Netlify mata la función a los ~30s sin importar qué esté haciendo (confirmado:
+// una invocación real quedó cortada en exactamente 30000ms), así que el reintento
+// tiene que respetar cuánto tiempo real queda — si no alcanza para otro intento
+// completo, mejor devolver un error ahora que quedar colgados hasta que nos maten.
+async function createMessageWithRetry(client, params, deadline, attempt = 0) {
   try {
     return await client.messages.create(params);
   } catch (err) {
     const isOverloaded = err?.status === 529 || /overloaded/i.test(err?.message || "");
-    if (isOverloaded && attempt < maxAttempts) {
-      await new Promise((resolve) => setTimeout(resolve, (attempt + 1) * 2000));
-      return createMessageWithRetry(client, params, attempt + 1, maxAttempts);
+    const delay = Math.min(2000 * (attempt + 1), 6000);
+    // Dejamos margen para la espera + un intento más (estimado ~8s) antes de darnos por vencidos.
+    const enoughTimeLeft = deadline - Date.now() > delay + 8000;
+    if (isOverloaded && enoughTimeLeft) {
+      await new Promise((resolve) => setTimeout(resolve, delay));
+      return createMessageWithRetry(client, params, deadline, attempt + 1);
     }
     throw err;
   }
@@ -121,6 +126,10 @@ ${considerations || "Ninguna."}`;
 }
 
 exports.handler = async (event) => {
+  // Netlify mata la función a los ~30s; dejamos margen para nuestro propio código
+  // (auth, armado del prompt, respuesta) alrededor de las llamadas a la IA.
+  const deadline = Date.now() + 24000;
+
   try {
     if (event.httpMethod !== "POST") {
       return { statusCode: 405, body: JSON.stringify({ error: "Método no permitido" }) };
@@ -200,7 +209,7 @@ Antes de redactar el informe, evaluá si falta información relevante o si algo 
         system: buildSystemPrompt(profession),
         messages: [{ role: "user", content: askPrompt }],
         output_config: { format: { type: "json_schema", schema: QUESTIONS_SCHEMA } },
-      });
+      }, deadline);
 
       const askTextBlock = askMessage.content.find((b) => b.type === "text");
       const parsed = askTextBlock ? JSON.parse(askTextBlock.text) : { needs_clarification: false, questions: [] };
@@ -243,7 +252,7 @@ ${FORMAT_CONVENTION}`;
       max_tokens: 3000,
       system: buildSystemPrompt(profession),
       messages: [{ role: "user", content: userPrompt }],
-    });
+    }, deadline);
 
     const textBlock = message.content.find((b) => b.type === "text");
     const reportText = textBlock ? textBlock.text.trim() : "";
