@@ -1041,7 +1041,11 @@
     const interval = setInterval(() => {
       pct = Math.min(cap, pct + increment);
       fill.style.width = pct + "%";
-      label.textContent = `Generando informe... ${Math.round(pct)}%`;
+      // Al llegar al tope dejamos de tocar el label — así el sondeo del job puede
+      // mostrar su propio mensaje (tiempo transcurrido) sin que esto lo pise.
+      if (pct < cap) {
+        label.textContent = `Generando informe... ${Math.round(pct)}%`;
+      }
     }, stepMs);
 
     return {
@@ -1064,35 +1068,98 @@
     };
   }
 
+  // La generación real corre en una función en segundo plano de Netlify (hasta 15
+  // minutos, sin el límite de ~30s de las funciones normales). Creamos un "job" en
+  // la base, disparamos esa función (sin esperar que termine), y sondeamos la fila
+  // hasta que quede en 'done' o 'error'.
   async function finalizeReport(basePayload, clarifications) {
-    const progress = startFakeProgress(20);
-    let result;
+    const progress = startFakeProgress(30);
+
     try {
-      result = await callGenerateReport({ ...basePayload, step: "generate", clarifications });
+      const { data: { session } } = await sb.auth.getSession();
+      if (!session) throw new Error("Sesión expirada, volvé a iniciar sesión.");
+
+      const { data: job, error: insertError } = await sb.from("report_jobs").insert({
+        patient_id: patientId,
+        user_id: currentUserId,
+        status: "pending",
+      }).select("id").single();
+      if (insertError) throw new Error(insertError.message);
+
+      const triggerResp = await fetch("/.netlify/functions/generate-report-background", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          jobId: job.id,
+          ...basePayload,
+          clarifications,
+        }),
+      });
+      if (!triggerResp.ok) throw new Error("No se pudo iniciar la generación del informe.");
+
+      const result = await pollReportJob(job.id, progress);
+
+      if (!result.report || !result.report.trim()) {
+        throw new Error("La IA no generó contenido para el informe. Probá de nuevo.");
+      }
+
+      document.getElementById("report-result-text").innerHTML = renderReportPreview(result.report);
+      currentReportId = null;
+      document.getElementById("btn-save-report").textContent = "Guardar informe";
+      const resultCard = document.getElementById("report-result-card");
+      resultCard.style.display = "block";
+      resultCard.scrollIntoView({ behavior: "smooth", block: "start" });
+
+      const msg = document.getElementById("report-message");
+      if (result.usedFallbackModel) {
+        msg.textContent = "Generado con un modelo de respaldo porque la IA principal estaba sobrecargada — revisalo con un poco más de atención.";
+        msg.className = "form-message";
+      } else {
+        msg.textContent = "";
+      }
     } catch (err) {
       progress.cancel();
       throw err;
     }
-    progress.finish();
+  }
 
-    if (!result.report || !result.report.trim()) {
-      throw new Error("La IA no generó contenido para el informe. Probá de nuevo.");
+  // Sondea la fila del job cada 3s hasta 13 minutos (el mismo margen que tiene la
+  // función de fondo para terminar). Si Anthropic viene con overload, va a tardar
+  // varios reintentos con espera propia — por eso la espera larga tiene sentido.
+  async function pollReportJob(jobId, progress) {
+    const maxWaitMs = 13 * 60 * 1000;
+    const intervalMs = 3000;
+    const start = Date.now();
+    const label = document.getElementById("generate-progress-label");
+
+    while (Date.now() - start < maxWaitMs) {
+      await new Promise((resolve) => setTimeout(resolve, intervalMs));
+
+      const elapsedSeconds = Math.round((Date.now() - start) / 1000);
+      if (elapsedSeconds > 25 && label) {
+        label.textContent = `Generando informe... (llevamos ${elapsedSeconds}s — puede tardar unos minutos si la IA está lenta)`;
+      }
+
+      const { data: job, error } = await sb
+        .from("report_jobs")
+        .select("status, result, error, used_fallback_model")
+        .eq("id", jobId)
+        .single();
+      if (error) throw new Error(error.message);
+
+      if (job.status === "done") {
+        progress.finish();
+        return { report: job.result, usedFallbackModel: job.used_fallback_model };
+      }
+      if (job.status === "error") {
+        throw new Error(job.error || "No se pudo generar el informe.");
+      }
     }
 
-    document.getElementById("report-result-text").innerHTML = renderReportPreview(result.report);
-    currentReportId = null;
-    document.getElementById("btn-save-report").textContent = "Guardar informe";
-    const resultCard = document.getElementById("report-result-card");
-    resultCard.style.display = "block";
-    resultCard.scrollIntoView({ behavior: "smooth", block: "start" });
-
-    const msg = document.getElementById("report-message");
-    if (result.usedFallbackModel) {
-      msg.textContent = "Generado con un modelo de respaldo porque la IA principal estaba sobrecargada — revisalo con un poco más de atención.";
-      msg.className = "form-message";
-    } else {
-      msg.textContent = "";
-    }
+    throw new Error("La generación está tardando demasiado (más de 13 minutos). Probá de nuevo más tarde.");
   }
 
   function renderClarificationQuestions(questions, basePayload) {
