@@ -89,6 +89,10 @@
   const PROFESSION_LABELS = {
     fonoaudiologia: "Fonoaudiología",
     psicomotricidad: "Psicomotricidad",
+    psicopedagogia: "Psicopedagogía",
+    terapia_ocupacional: "Terapia Ocupacional",
+    psicologia: "Psicología",
+    fisioterapia: "Fisioterapia",
   };
 
   async function loadStats() {
@@ -138,10 +142,14 @@
       if (u.login_count_30d > 0) active30d++;
     });
 
+    const professionCards = Object.keys(byProfession).map((prof) => ({
+      num: byProfession[prof],
+      label: PROFESSION_LABELS[prof] || prof,
+    }));
+
     const cards = [
       { num: total, label: "Usuarios totales" },
-      { num: byProfession.fonoaudiologia || 0, label: "Fonoaudiología" },
-      { num: byProfession.psicomotricidad || 0, label: "Psicomotricidad" },
+      ...professionCards,
       { num: confirmed, label: "Cuentas confirmadas" },
       { num: total - confirmed, label: "Esperando confirmación" },
       { num: active7d, label: "Activos últimos 7 días" },

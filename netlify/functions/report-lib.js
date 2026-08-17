@@ -82,6 +82,26 @@ const PROFESSION_CONFIG = {
     reportTitle: "INFORME DE EVOLUCIÓN PSICOMOTRIZ",
     evaluationAreas: "áreas evaluadas (esquema corporal, lateralidad, equilibrio, coordinación dinámica general y óculo-manual/podal, organización espacio-temporal, tono muscular, praxias, motricidad fina y gruesa, según corresponda), instrumentos o pruebas utilizadas, resultados relevantes",
   },
+  psicopedagogia: {
+    roleLabel: "psicopedagogos",
+    reportTitle: "INFORME DE EVOLUCIÓN PSICOPEDAGÓGICO",
+    evaluationAreas: "áreas evaluadas (procesos de aprendizaje, atención, memoria, funciones ejecutivas, lectoescritura, cálculo, motivación y vínculo con el aprendizaje, según corresponda), instrumentos o pruebas utilizadas, resultados relevantes",
+  },
+  terapia_ocupacional: {
+    roleLabel: "terapeutas ocupacionales",
+    reportTitle: "INFORME DE EVOLUCIÓN EN TERAPIA OCUPACIONAL",
+    evaluationAreas: "áreas evaluadas (motricidad fina y gruesa, integración sensorial, actividades de la vida diaria, coordinación, praxias, independencia funcional, según corresponda), instrumentos o pruebas utilizadas, resultados relevantes",
+  },
+  psicologia: {
+    roleLabel: "psicólogos",
+    reportTitle: "INFORME DE EVOLUCIÓN PSICOLÓGICO",
+    evaluationAreas: "áreas evaluadas (estado emocional, funcionamiento cognitivo, conducta, vínculos y dinámica familiar, mecanismos de afrontamiento, según corresponda), instrumentos o pruebas utilizadas, resultados relevantes",
+  },
+  fisioterapia: {
+    roleLabel: "fisioterapeutas",
+    reportTitle: "INFORME DE EVOLUCIÓN FISIOTERAPÉUTICO",
+    evaluationAreas: "áreas evaluadas (rango de movimiento, fuerza muscular, dolor, marcha y equilibrio, funcionalidad, según corresponda), instrumentos o pruebas utilizadas, resultados relevantes",
+  },
 };
 const DEFAULT_PROFESSION = "fonoaudiologia";
 
